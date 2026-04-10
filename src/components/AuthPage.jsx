@@ -1,124 +1,122 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RegistrationPage1 } from "./RegistrationPage1";
-import { RegistrationPage2 } from "./RegistrationPage2";
-import { OTPPage } from "./OTPPage"; 
-import { ForgotPasswordPage } from "./ForgotPasswordPage"; 
-import { ResetPasswordPage } from "./ResetPasswordPage"; 
-import { Heart, Stethoscope } from "lucide-react";
+import { LogIn, Lock, Mail, Eye, EyeOff, Loader2, AlertCircle, HeartPulse } from "lucide-react";
+import api from '../api/axios'; 
 
 export default function AuthPage() {
-  const [view, setView] = useState("login"); 
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({});
-  const [isForgotPass, setIsForgotPass] = useState(false);
-  const [resetStep, setResetStep] = useState(1); 
-  const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [formData, setFormData] = useState({ email: '', password: '' });
 
-
-  const handleLoginSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-
-    const email = e.target[0].value;
-    const password = e.target[1].value;
-
+    setError("");
     try {
-     
-      const response = await fetch('https://unalterably-unasphalted-felton.ngrok-free.dev/api/Auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type':'application/json',
-          'ngrok-skip-browser-warning': 'true'
-        },
-        body: JSON.stringify({
-          email: email,
-          password: password
-        })
-      });
+      const response = await api.post('/api/Auth/login', formData); 
+      const { token, role } = response.data;
+      
+      // حفظ البيانات الأساسية
+      localStorage.setItem('token', token);
+      localStorage.setItem('role', role);
 
-      const result = await response.json();
-
-      if (response.ok) {
-        console.log("Login Success:", result);
-       
-        navigate('/doctor');
+      // التوجيه الذكي بناءً على الرتبة (Universal Redirect)
+      // ده هيحول المستخدم لـ /doctor/dashboard أو /nurse/dashboard أو /lab/dashboard أوتوماتيك
+      const userRole = role.toLowerCase();
+      
+      // لو الدكتور عايز يفتح البروفايل أول ما يدخل ممكن تسيبها كده، 
+      // بس الأفضل يروح للـ Dashboard عشان يشوف شغله الأول
+      if (role === 'Doctor') {
+        navigate('/doctor/dashboard');
       } else {
-        alert("خطأ في تسجيل الدخول: " + (result.message || "تأكد من البيانات"));
+        navigate(`/${userRole}/dashboard`);
       }
-    } catch (error) {
-      console.error("API Error:", error);
-      alert("تعذر الاتصال بالسيرفر عبر ngrok. تأكد أن الـ Tunnel شغال.");
+
+    } catch (err) {
+      console.error("Login Error:", err);
+      setError("Invalid credentials. Please check your email and password.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotNext = (data) => {
-    setFormData({ ...formData, email: data?.email });
-    setResetStep(2);
-  };
-
-  const handleRegisterComplete = (data) => {
-    setFormData({ ...formData, ...data });
-    setStep(3);
-  };
-
-  if (isForgotPass) {
-    if (resetStep === 1) return <ForgotPasswordPage onNext={handleForgotNext} onBack={() => setIsForgotPass(false)} />;
-    if (resetStep === 2) return <OTPPage email={formData.email} onVerify={() => setResetStep(3)} onBack={() => setResetStep(1)} />;
-    if (resetStep === 3) return <ResetPasswordPage onReset={() => { setIsForgotPass(false); setView("login"); }} onBack={() => setResetStep(2)} />;
-  }
-
-  if (view === "register" && step === 3) {
-    return <OTPPage email={formData.email} onVerify={() => { setView("login"); setStep(1); }} onBack={() => setStep(2)} />;
-  }
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-[#f8faff] p-4">
-      <div className="w-full max-w-[550px] bg-white rounded-[32px] shadow-2xl p-10">
-        <div className="flex flex-col items-center mb-8 text-center">
-          <div className="flex gap-2 mb-4">
-            <Heart className="text-blue-500" fill="#3b82f6" size={35} />
-            <Stethoscope className="text-blue-600" size={35} />
+    <div className="min-h-screen bg-[#f0f9ff] flex items-center justify-center p-4" dir="ltr">
+      {/* Login Card */}
+      <div className="w-full max-w-[440px] bg-white rounded-[3rem] shadow-[0_20px_60px_rgba(186,230,253,0.4)] p-12 border border-blue-50 relative overflow-hidden">
+        
+        {/* Background Glow */}
+        <div className="absolute -top-20 -left-20 w-40 h-40 bg-cyan-50 rounded-full blur-3xl opacity-60"></div>
+        
+        {/* Logo Section */}
+        <div className="text-center mb-10 relative">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-cyan-50 rounded-[2.2rem] mb-5 group">
+            <HeartPulse className="w-10 h-10 text-cyan-500 animate-pulse" strokeWidth={1.5} />
           </div>
-          <h1 className="text-xl font-black text-slate-800 tracking-tight">HealthCare System</h1>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Health Portal</h1>
+          <p className="text-cyan-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-2">Medical System Access</p>
         </div>
 
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl mb-8">
-          <button onClick={() => { setView("login"); setStep(1); }} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${view === "login" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"}`}>Login</button>
-          <button onClick={() => { setView("register"); setStep(1); }} className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${view === "register" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"}`}>Register</button>
-        </div>
-
-        {view === "login" ? (
-          <form className="space-y-6" onSubmit={handleLoginSubmit}>
-            <div className="space-y-2 text-left">
-              <label className="text-sm font-bold text-slate-700">Email Address</label>
-              <input type="email" placeholder="doctor@healthcare.com" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 transition-all" required />
-            </div>
-            <div className="space-y-2 text-left">
-              <label className="text-sm font-bold text-slate-700">Password</label>
-              <input type="password" placeholder="••••••••" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-blue-500 transition-all" required />
-            </div>
-            <div className="text-right">
-              <button type="button" onClick={() => { setIsForgotPass(true); setResetStep(1); }} className="text-[11px] text-blue-500 font-bold hover:underline">Forgot Password?</button>
-            </div>
-            <button 
-              type="submit" 
-              disabled={loading}
-              className={`w-full bg-[#1e5af2] text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all ${loading ? "opacity-70" : ""}`}
-            >
-              {loading ? "Connecting..." : "Login to System"}
-            </button>
-          </form>
-        ) : (
-          <div className="w-full">
-            {step === 1 && <RegistrationPage1 onNext={(data) => { setFormData({...formData, ...data}); setStep(2); }} onBack={() => setView("login")} />}
-            {step === 2 && <RegistrationPage2 onBack={() => setStep(1)} onComplete={handleRegisterComplete} />}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-bold border border-red-100 animate-in fade-in zoom-in">
+            <AlertCircle size={18} /> {error}
           </div>
         )}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+              <input 
+                type="email" 
+                required
+                placeholder="doctor@healthcare.com"
+                className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700"
+                onChange={(e) => setFormData({...formData, email: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Password</label>
+            <div className="relative">
+              <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+              <input 
+                type={showPassword ? "text" : "password"} 
+                required
+                placeholder="••••••••"
+                className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700"
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500"
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <button 
+            type="submit" 
+            disabled={loading}
+            className="w-full py-5 bg-cyan-500 text-white rounded-[1.8rem] font-black text-xs uppercase tracking-widest hover:bg-cyan-600 shadow-xl shadow-cyan-100 transition-all duration-300 flex items-center justify-center gap-3 mt-4 disabled:bg-slate-200"
+          >
+            {loading ? <Loader2 className="animate-spin" size={20} /> : "Login To Portal"}
+          </button>
+        </form>
+
+        <div className="mt-10 pt-8 border-t border-slate-50 text-center">
+          <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+            <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse"></span>
+            Authorized Medical Staff Only
+          </p>
+        </div>
       </div>
     </div>
   );

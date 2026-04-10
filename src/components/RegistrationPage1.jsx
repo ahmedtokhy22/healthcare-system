@@ -1,14 +1,28 @@
-import React from 'react';
+import axios from 'axios';
+import React, { useState, useEffect } from 'react'; 
 
 export function RegistrationPage1({ onNext, onBack }) {
-  // 1. تعريف قائمة المحافظات داخل المكون
-  const governorates = [
-    "Cairo", "Giza", "Alexandria", "Port Said", "Suez", "Luxor", "Aswan", 
-    "Assiut", "Beheira", "Beni Suef", "Dakahlia", "Damietta", "Faiyum", 
-    "Gharbia", "Ismailia", "Kafr El Sheikh", "Matrouh", "Minya", "Monufia", 
-    "New Valley", "North Sinai", "Qalyubia", "Qena", "Red Sea", "Sharqia", 
-    "Sohag", "South Sinai"
-  ];
+  const [governorates, setGovernorates] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGovernorates = async () => {
+      try {
+        const response = await axios.get('https://unalterably-unasphalted-felton.ngrok-free.dev/api/locations/cities', {
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          }
+        });
+        setGovernorates(response.data); 
+      } catch (error) {
+        console.error("Error fetching governorates:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGovernorates();
+  }, []);
 
   return (
     <div className="animate-in slide-in-from-right-4 duration-500 text-left">

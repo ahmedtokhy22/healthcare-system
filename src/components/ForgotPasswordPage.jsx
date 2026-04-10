@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import { KeyRound, ArrowLeft } from "lucide-react";
 
-export function ForgotPasswordPage({ onNext, onBack }) {
+// التعديل هنا: إضافة export default
+export default function ForgotPasswordPage({ onNext, onBack }) {
   const [email, setEmail] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onNext({ email }); 
+    if (onNext) {
+      onNext({ email }); 
+    }
   };
 
   return (
@@ -35,7 +38,11 @@ export function ForgotPasswordPage({ onNext, onBack }) {
             Send Reset Code
           </button>
         </form>
-        <button onClick={onBack} className="mt-8 flex items-center justify-center gap-2 w-full text-slate-400 text-sm font-bold hover:text-blue-500 transition-colors">
+        <button 
+          type="button"
+          onClick={onBack || (() => window.history.back())} 
+          className="mt-8 flex items-center justify-center gap-2 w-full text-slate-400 text-sm font-bold hover:text-blue-500 transition-colors"
+        >
           <ArrowLeft size={16} /> Back to Login
         </button>
       </div>

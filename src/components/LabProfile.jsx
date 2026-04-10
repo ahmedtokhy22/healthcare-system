@@ -1,107 +1,127 @@
-import React from 'react';
-import { Mail, Phone, MapPin, Beaker, Globe, info, Camera, Award } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Phone, MapPin, FlaskConical, Save, Upload, Activity } from "lucide-react";
+import api from '../api/axios'; 
 
-const LabProfileTemplate = ({ data }) => {
-  // حالة التحميل لو الداتا لسه مصلتش من السيرفر
-  if (!data) return <div className="p-10 text-center text-gray-500 font-bold">جارٍ تحميل بيانات المعمل...</div>;
+export default function LabProfile() {
+  const [profileData, setProfileData] = useState({
+    Name: "",
+    Title: "",      
+    Specialty: "",   
+    Bio: "",
+    PhoneNumber: "",
+    Address: "",
+    City: ""
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/api/Labs/profile'); 
+        const d = response.data;
+        setProfileData({
+          Name: d.name || "",
+          Title: d.title || "",
+          Specialty: d.specialty || "",
+          Bio: d.bio || "",
+          PhoneNumber: d.phoneNumber || "",
+          Address: d.address || "",
+          City: d.city || ""
+        });
+        if (d.profilePicture) setImagePreview(d.profilePicture);
+      } catch (err) {
+        console.error("Fetch error:", err);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSave = async () => {
+    setLoading(true);
+    const formData = new FormData();
+  
+    formData.append('name', profileData.Name);
+    formData.append('title', profileData.Title);
+    formData.append('specialty', profileData.Specialty);
+    formData.append('bio', profileData.Bio);
+    formData.append('phoneNumber', profileData.PhoneNumber);
+    formData.append('address', profileData.Address);
+    formData.append('city', profileData.City);
+    formData.append('addressUrl', "string");
+
+    if (selectedFile) formData.append('ProfilePicture', selectedFile);
+
+    try {
+      await api.put('/api/Labs/profile', formData);
+      alert("Lab Profile Updated Successfully! ✅");
+    } catch (err) {
+      alert("Update Failed ❌");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="p-6 bg-[#f8fafc] min-h-screen font-sans" dir="rtl">
-      <div className="max-w-5xl mx-auto">
+    <div className="min-h-screen bg-[#f8fafc] p-8" dir="ltr">
+      <div className="max-w-4xl mx-auto bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100">
+        <div className="flex items-center gap-3 mb-8">
+           <div className="w-10 h-10 bg-cyan-600 rounded-xl flex items-center justify-center">
+              <FlaskConical className="text-white" size={20} />
+           </div>
+           <h1 className="text-2xl font-black text-slate-800">Laboratory Profile</h1>
+        </div>
         
-        {/* الكارت العلوي - واجهة المعمل */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden mb-8">
-          <div className="h-40 bg-gradient-to-r from-[#0ea5e9] to-[#2563eb]"></div>
-          <div className="px-10 pb-8">
-            <div className="relative flex justify-between items-end -mt-16">
-              <div className="relative">
-                <img 
-                  src={data.profilePictureUrl || 'https://via.placeholder.com/150'} 
-                  alt="Lab Logo" 
-                  className="w-36 h-36 rounded-3xl border-8 border-white shadow-xl object-cover bg-white"
-                />
-                <div className="absolute -bottom-2 -right-2 bg-blue-500 p-2 rounded-xl border-4 border-white text-white">
-                  <Beaker size={20} />
-                </div>
-              </div>
-              <div className="flex gap-3 mb-4">
-                <button className="bg-[#1e5af2] text-white px-8 py-3 rounded-2xl font-bold hover:shadow-lg hover:shadow-blue-200 transition-all">
-                  تعديل بيانات المعمل
-                </button>
-              </div>
-            </div>
-            
-            <div className="mt-6 text-right">
-              <h2 className="text-3xl font-black text-gray-800">{data.name}</h2>
-              <p className="text-blue-500 font-bold mt-1 flex items-center gap-2">
-                <Award size={18} /> مركز تحاليل طبية معتمد
-              </p>
-            </div>
+        <div className="mb-12 flex items-center gap-8">
+          <div className="w-24 h-24 bg-slate-50 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center">
+            {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <Activity size={40} className="text-slate-200" />}
           </div>
+          <input type="file" id="lab-img" hidden onChange={(e) => {
+            const file = e.target.files[0];
+            if(file) { setSelectedFile(file); setImagePreview(URL.createObjectURL(file)); }
+          }} />
+          <button onClick={() => document.getElementById('lab-img').click()} className="px-6 py-2.5 border border-cyan-100 text-cyan-600 rounded-xl text-xs font-black hover:bg-cyan-50">
+            <Upload size={14} className="inline mr-2"/> Update Lab Logo
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <CustomInput label="Lab Name" value={profileData.Name} onChange={(e)=>setProfileData({...profileData, Name: e.target.value})} icon={<FlaskConical size={16}/>} />
+          <CustomInput label="Lab Title / Subtitle" value={profileData.Title} onChange={(e)=>setProfileData({...profileData, Title: e.target.value})} icon={<Activity size={16}/>} />
+          <CustomInput label="Phone Number" value={profileData.PhoneNumber} onChange={(e)=>setProfileData({...profileData, PhoneNumber: e.target.value})} icon={<Phone size={16}/>} />
+          <CustomInput label="Location (City)" value={profileData.City} onChange={(e)=>setProfileData({...profileData, City: e.target.value})} icon={<MapPin size={16}/>} />
           
-          {/* العمود الجانبي: معلومات التواصل والموقع */}
-          <div className="space-y-6">
-            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-6 border-b pb-3">بيانات الاتصال</h3>
-              <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 rounded-2xl text-[#1e5af2]"><Phone size={22} /></div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 font-bold uppercase">الخط الساخن / الهاتف</p>
-                    <p className="text-sm font-bold text-gray-700">{data.phoneNumber}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 rounded-2xl text-[#1e5af2]"><Mail size={22} /></div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 font-bold uppercase">البريد الإلكتروني</p>
-                    <p className="text-sm font-bold text-gray-700">{data.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-blue-50 rounded-2xl text-[#1e5af2]"><MapPin size={22} /></div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-400 font-bold uppercase">الموقع</p>
-                    <p className="text-sm font-bold text-gray-700">{data.address}, {data.city}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* العمود الرئيسي: نبذة عن المعمل */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-gray-100 h-full">
-              <h3 className="font-bold text-2xl text-gray-800 mb-6 flex items-center gap-3">
-                 وصف المعمل
-              </h3>
-              <div className="bg-blue-50/50 p-8 rounded-[2rem] border border-blue-100">
-                <p className="text-gray-700 text-lg leading-relaxed text-right italic">
-                  "{data.bio}"
-                </p>
-              </div>
-              
-              {/* إحصائيات سريعة للمعمل */}
-              <div className="mt-10 grid grid-cols-2 gap-6">
-                <div className="p-6 bg-white border border-gray-100 rounded-[2rem] text-center">
-                  <p className="text-gray-400 text-sm font-bold mb-2 uppercase">الفروع</p>
-                  <p className="text-3xl font-black text-gray-800">Cairo HQ</p>
-                </div>
-                <div className="p-6 bg-white border border-gray-100 rounded-[2rem] text-center">
-                  <p className="text-gray-400 text-sm font-bold mb-2 uppercase">الحالة</p>
-                  <p className="text-3xl font-black text-green-500">متاح</p>
-                </div>
-              </div>
-            </div>
+          <div className="md:col-span-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Lab Services & About</label>
+            <textarea 
+              value={profileData.Bio} 
+              onChange={(e)=>setProfileData({...profileData, Bio: e.target.value})} 
+              className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none min-h-[120px] focus:ring-2 focus:ring-cyan-50"
+              placeholder="Describe your lab services..."
+            />
           </div>
         </div>
 
+        <div className="mt-10">
+          <button onClick={handleSave} disabled={loading} className="bg-cyan-600 text-white px-10 py-4 rounded-xl font-black text-xs hover:bg-cyan-700 shadow-xl shadow-cyan-100 transition-all">
+            {loading ? "Saving..." : "Save Lab Profile"}
+          </button>
+        </div>
       </div>
     </div>
   );
-};
+}
 
-export default LabProfileTemplate;
+function CustomInput({ label, value, onChange, icon }) {
+  return (
+    <div className="space-y-2">
+      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
+      <div className="relative">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">{icon}</div>
+        <input value={value} onChange={onChange} className="w-full pl-12 p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-cyan-50" />
+      </div>
+    </div>
+  );
+}
