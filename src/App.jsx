@@ -1,174 +1,139 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import { HeartPulse, User, LogOut, ChevronDown, LayoutDashboard, Calendar, FlaskConical, Users, ShieldCheck } from "lucide-react";
+import React, { useState, Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 
-// استيراد المكونات (تأكد من المسارات)
-import AuthPage from './components/AuthPage';
-import DoctorDashboard from './components/DoctorDashboard';
-import DoctorManageAppointments from './components/DoctorManageAppointments';
-import DoctorPosts from './components/DoctorPosts';
-import DoctorProfile from './components/DoctorProfile';
+// --- 1. استيراد المكونات الثابتة ---
+import Navbar from './components/Navbar'; 
 
-// مكون حماية المسارات (ProtectedRoute)
+// --- 2. تعريف الصفحات (Lazy Loading) ---
+// Auth & Registration
+const AuthPage = lazy(() => import('./components/AuthPage'));
+const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
+const OTPPage = lazy(() => import('./components/OTPPage'));
+const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
+const RegistrationPage1 = lazy(() => import('./components/RegistrationPage1'));
+const RegistrationPage2 = lazy(() => import('./components/RegistrationPage2'));
+
+// Admin
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const AdminUsers = lazy(() => import('./components/AdminUsers'));
+const UserList = lazy(() => import('./components/UserList'));
+
+// Doctor
+const DoctorDashboard = lazy(() => import('./components/DoctorDashboard'));
+const DoctorManageAppointments = lazy(() => import('./components/DoctorManageAppointments'));
+const DoctorProfile = lazy(() => import('./components/DoctorProfile'));
+const DoctorPosts = lazy(() => import('./components/DoctorPosts'));
+const PatientProfile = lazy(() => import('./components/PatientProfile')); // ضفنا الاستيراد هنا
+
+// Nurse
+const NurseDashboard = lazy(() => import('./components/NurseDashboard'));
+const NurseManageAppointments = lazy(() => import('./components/NurseManageAppointments'));
+const NurseProfile = lazy(() => import('./components/NurseProfile'));
+
+// Lab
+const LabDashboard = lazy(() => import('./components/LabDashboard'));
+const LabAppointments = lazy(() => import('./components/LabAppointments'));
+const LabTestManagement = lazy(() => import('./components/LabTestManagement'));
+const LabProfile = lazy(() => import('./components/LabProfile'));
+
+// Generic
+const EditProfile = lazy(() => import('./components/EditProfile'));
+
+// --- 3. المكونات المساعدة ---
 const ProtectedRoute = ({ children, allowedRole }) => {
   const token = localStorage.getItem('token');
-  const userRole = localStorage.getItem('role'); // يتم تخزينه عند الـ Login (مثلاً: Doctor, Nurse, Lab, Admin)
-
+  const userRole = localStorage.getItem('role');
   if (!token) return <Navigate to="/" replace />;
-  if (allowedRole && userRole !== allowedRole) {
-    return <Navigate to={`/${userRole.toLowerCase()}/dashboard`} replace />;
-  }
+  if (allowedRole && userRole !== allowedRole) return <Navigate to={`/${userRole.toLowerCase()}/dashboard`} replace />;
   return children;
 };
 
-// مكون الـ Navbar الموحد
-const Navbar = ({ role, showDropdown, setShowDropdown }) => {
-  const location = useLocation();
-  
-  // وظيفة لتحديد اللينكات بناءً على الدور
-  const getLinks = () => {
-    switch (role) {
-      case 'Doctor':
-        return [
-          { to: "/doctor/dashboard", label: "Dashboard" },
-          { to: "/doctor/appointments", label: "Appointments" },
-          { to: "/doctor/posts", label: "My Posts" },
-        ];
-      case 'Nurse':
-        return [
-          { to: "/nurse/dashboard", label: "Overview" },
-          { to: "/nurse/patients", label: "Patients List" },
-        ];
-      case 'Lab':
-        return [
-          { to: "/lab/dashboard", label: "Test Requests" },
-          { to: "/lab/results", label: "Upload Results" },
-        ];
-      case 'Admin':
-        return [
-          { to: "/admin/dashboard", label: "System Stats" },
-          { to: "/admin/users", label: "Manage Staff" },
-        ];
-      default: return [];
-    }
-  };
-
+const DashboardLayout = ({ children, role }) => {
+  const [showDropdown, setShowDropdown] = useState(false);
   return (
-    <nav className="bg-white border-b border-slate-100 px-8 py-4 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex justify-between items-center">
-        <div className="flex items-center gap-2">
-          <HeartPulse className="text-cyan-500" size={28} />
-          <span className="font-black text-slate-800 text-lg tracking-tight">HealthCare <span className="text-cyan-500 text-[10px] uppercase">{role}</span></span>
-        </div>
-
-        <div className="flex bg-slate-50 p-1.5 rounded-2xl gap-1">
-          {getLinks().map(link => (
-            <Link 
-              key={link.to}
-              to={link.to} 
-              className={`px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
-                location.pathname === link.to ? 'bg-cyan-500 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </div>
-
-        <div className="relative">
-          <button onClick={() => setShowDropdown(!showDropdown)} className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-cyan-500 rounded-full flex items-center justify-center text-white font-black shadow-lg shadow-cyan-100">
-              {role[0]}
-            </div>
-            <ChevronDown size={14} className={`text-slate-300 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
-          </button>
-
-          {showDropdown && (
-            <div className="absolute right-0 mt-3 w-52 bg-white rounded-[2rem] shadow-xl border border-slate-50 py-2 z-50">
-              <Link to={`/${role.toLowerCase()}/profile`} onClick={() => setShowDropdown(false)} className="flex items-center gap-3 px-5 py-3 text-slate-600 hover:bg-slate-50 text-[11px] font-black uppercase tracking-widest transition-colors">
-                <User size={16} /> My Profile
-              </Link>
-              <button onClick={() => { localStorage.clear(); window.location.href="/"; }} className="w-full flex items-center gap-3 px-5 py-3 text-red-400 hover:bg-red-50 text-[11px] font-black uppercase tracking-widest transition-colors">
-                <LogOut size={16} /> Logout
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </nav>
+    <div className="min-h-screen bg-[#f8fafc]">
+      <Navbar role={role} showDropdown={showDropdown} setShowDropdown={setShowDropdown} />
+      <main className="max-w-7xl mx-auto p-6 md:p-10">{children}</main>
+    </div>
   );
 };
 
-function App() {
-  const [showDropdown, setShowDropdown] = useState(false);
-  const userRole = localStorage.getItem('role'); // جلب الدور المخزن
-
+export default function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<AuthPage />} />
+      <Suspense fallback={<div className="flex items-center justify-center h-screen animate-pulse text-blue-600 font-black tracking-widest">HEALTHCARE SYSTEM...</div>}>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<AuthPage />} />
+          <Route path="/register-1" element={<RegistrationPage1 />} />
+          <Route path="/register-2" element={<RegistrationPage2 />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/otp-verification" element={<OTPPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-        {/* --- مجموعة مسارات الدكتور --- */}
-        <Route path="/doctor/*" element={
-          <ProtectedRoute allowedRole="Doctor">
-            <div className="min-h-screen bg-[#f8fafc]">
-              <Navbar role="Doctor" showDropdown={showDropdown} setShowDropdown={setShowDropdown} />
-              <Routes>
-                <Route path="dashboard" element={<DoctorDashboard />} />
-                <Route path="appointments" element={<DoctorManageAppointments />} />
-                <Route path="posts" element={<DoctorPosts />} />
-                <Route path="profile" element={<DoctorProfile />} />
-                <Route path="*" element={<Navigate to="dashboard" />} />
-              </Routes>
-            </div>
-          </ProtectedRoute>
-        } />
+          {/* Admin Routes */}
+          <Route path="/admin/*" element={
+            <ProtectedRoute allowedRole="Admin">
+              <DashboardLayout role="Admin">
+                <Routes>
+                  <Route path="dashboard" element={<AdminPanel />} />
+                  <Route path="users" element={<AdminUsers />} />
+                  <Route path="user-list" element={<UserList />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
 
-        {/* --- مجموعة مسارات الممرضة --- */}
-        <Route path="/nurse/*" element={
-          <ProtectedRoute allowedRole="Nurse">
-            <div className="min-h-screen bg-[#f8fafc]">
-              <Navbar role="Nurse" showDropdown={showDropdown} setShowDropdown={setShowDropdown} />
-              <Routes>
-                <Route path="dashboard" element={<div>Nurse Dashboard Page</div>} />
-                <Route path="patients" element={<div>Patients Management</div>} />
-                <Route path="*" element={<Navigate to="dashboard" />} />
-              </Routes>
-            </div>
-          </ProtectedRoute>
-        } />
+          {/* Doctor Routes */}
+          <Route path="/doctor/*" element={
+            <ProtectedRoute allowedRole="Doctor">
+              <DashboardLayout role="Doctor">
+                <Routes>
+                  <Route path="dashboard" element={<DoctorDashboard />} />
+                  <Route path="appointments" element={<DoctorManageAppointments />} />
+                  <Route path="posts" element={<DoctorPosts />} /> 
+                  <Route path="profile" element={<DoctorProfile />} />
+                  {/* مسار تفاصيل المريض أصبح مفعلاً الآن */}
+                  <Route path="patient-profile/:id" element={<PatientProfile />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
 
-        {/* --- مجموعة مسارات المعمل --- */}
-        <Route path="/lab/*" element={
-          <ProtectedRoute allowedRole="Lab">
-            <div className="min-h-screen bg-[#f8fafc]">
-              <Navbar role="Lab" showDropdown={showDropdown} setShowDropdown={setShowDropdown} />
-              <Routes>
-                <Route path="dashboard" element={<div>Laboratory Dashboard</div>} />
-                <Route path="*" element={<Navigate to="dashboard" />} />
-              </Routes>
-            </div>
-          </ProtectedRoute>
-        } />
+          {/* Nurse Routes */}
+          <Route path="/nurse/*" element={
+            <ProtectedRoute allowedRole="Nurse">
+              <DashboardLayout role="Nurse">
+                <Routes>
+                  <Route path="dashboard" element={<NurseDashboard />} />
+                  <Route path="manage-appointments" element={<NurseManageAppointments />} />
+                  <Route path="profile" element={<NurseProfile />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
 
-        {/* --- مجموعة مسارات الأدمن --- */}
-        <Route path="/admin/*" element={
-          <ProtectedRoute allowedRole="Admin">
-            <div className="min-h-screen bg-[#f8fafc]">
-              <Navbar role="Admin" showDropdown={showDropdown} setShowDropdown={setShowDropdown} />
-              <Routes>
-                <Route path="dashboard" element={<div>Admin Control Panel</div>} />
-                <Route path="*" element={<Navigate to="dashboard" />} />
-              </Routes>
-            </div>
-          </ProtectedRoute>
-        } />
+          {/* Lab Routes */}
+          <Route path="/lab/*" element={
+            <ProtectedRoute allowedRole="Lab">
+              <DashboardLayout role="Lab">
+                <Routes>
+                  <Route path="dashboard" element={<LabDashboard />} />
+                  <Route path="appointments" element={<LabAppointments />} />
+                  <Route path="tests" element={<LabTestManagement />} />
+                  <Route path="profile" element={<LabProfile />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
 
-        {/* أي مسار غير معروف يرجع للرئيسية */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   );
 }
-
-export default App;

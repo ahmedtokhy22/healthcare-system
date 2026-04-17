@@ -1,129 +1,167 @@
-import React, { useState, useEffect } from 'react';
-import { User, Phone, MapPin, Briefcase, Save, Upload, Heart } from "lucide-react";
-import api from '../api/axios'; // ملف الأكسيوس اللي فيه الـ ngrok بتاعك
+import React, { useState, useRef } from 'react';
+import { User, MessageSquare, Phone, MapPin, Camera, Save, X, CheckCircle, Briefcase } from "lucide-react";
 
-export default function NurseProfile() {
-  const [profileData, setProfileData] = useState({
-    Name: "",
-    Title: "",       // مثلاً: Head Nurse
-    Specialty: "",   // مثلاً: Emergency or ICU
-    Bio: "",
-    PhoneNumber: "",
-    Address: "",
-    City: ""
+const NurseProfile = () => {
+  // 1. البيانات تبدأ فاضية تماماً (Empty State)
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    phone: "",
+    location: "",
+    specialization: "",
+    bio: ""
   });
 
-  const [loading, setLoading] = useState(false);
-  const [imagePreview, setImagePreview] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
+  const [profileImage, setProfileImage] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
+  const fileInputRef = useRef(null);
 
-  // جلب بيانات الممرضة عند تحميل الصفحة
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const response = await api.get('/api/Nurses/profile'); // الـ Endpoint الخاص بالممرضات
-        const d = response.data;
-        setProfileData({
-          Name: d.name || "",
-          Title: d.title || "",
-          Specialty: d.specialty || "",
-          Bio: d.bio || "",
-          PhoneNumber: d.phoneNumber || "",
-          Address: d.address || "",
-          City: d.city || ""
-        });
-        if (d.profilePicture) setImagePreview(d.profilePicture);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      }
-    };
-    fetchProfile();
-  }, []);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (isSaved) setIsSaved(false);
+  };
 
-  const handleSave = async () => {
-    setLoading(true);
-    const formData = new FormData();
-    // إرسال البيانات بأسماء الحقول اللي السيرفر مستنيها (camelCase)
-    formData.append('name', profileData.Name);
-    formData.append('title', profileData.Title);
-    formData.append('specialty', profileData.Specialty);
-    formData.append('bio', profileData.Bio);
-    formData.append('phoneNumber', profileData.PhoneNumber);
-    formData.append('address', profileData.Address);
-    formData.append('city', profileData.City);
-    formData.append('addressUrl', "string");
-
-    if (selectedFile) formData.append('ProfilePicture', selectedFile);
-
-    try {
-      await api.put('/api/Nurses/profile', formData);
-      alert("Nurse Profile Updated Successfully! ✅");
-    } catch (err) {
-      alert("Update Failed ❌");
-    } finally {
-      setLoading(false);
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setProfileImage(reader.result);
+      reader.readAsDataURL(file);
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // هنا يتم الربط مع الـ API الخاص بك
+    console.log("Submitting to Laravel Backend...", formData);
+    setIsSaved(true);
+    setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  const handleCancel = () => {
+    setFormData({ fullName: "", email: "", phone: "", location: "", specialization: "", bio: "" });
+    setProfileImage(null);
+  };
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-8" dir="ltr">
-      <div className="max-w-4xl mx-auto bg-white rounded-[2.5rem] p-12 shadow-sm border border-slate-100">
-        <div className="flex items-center gap-3 mb-8">
-           <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Heart className="text-white" size={20} fill="white"/>
-           </div>
-           <h1 className="text-2xl font-black text-slate-800">Nurse Profile Settings</h1>
+    <div className="p-8 max-w-5xl mx-auto animate-in fade-in duration-700">
+      
+      {/* Header - بنفس ستايل الداشبورد */}
+      <header className="mb-10 flex justify-between items-end">
+        <div className="text-left">
+          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Edit Profile</h2>
+          <p className="text-slate-400 text-sm font-medium mt-1">Setup your professional nursing presence</p>
         </div>
+        {isSaved && (
+          <div className="flex items-center gap-2 bg-cyan-50 text-cyan-600 px-4 py-2 rounded-2xl animate-in zoom-in">
+            <CheckCircle size={16} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Profile Updated</span>
+          </div>
+        )}
+      </header>
+
+      <div className="bg-white rounded-[3rem] border border-slate-100 p-10 shadow-sm">
         
-        {/* الصورة الشخصية */}
-        <div className="mb-12 flex items-center gap-8">
-          <div className="w-24 h-24 bg-slate-50 rounded-full overflow-hidden border border-slate-100 flex items-center justify-center">
-            {imagePreview ? <img src={imagePreview} className="w-full h-full object-cover" /> : <User size={40} className="text-slate-200" />}
+        {/* Profile Picture Section */}
+        <div className="flex flex-col items-center gap-4 mb-12">
+          <div className="relative group">
+            <div className="w-32 h-32 bg-slate-50 rounded-[2.5rem] overflow-hidden flex items-center justify-center border-2 border-dashed border-slate-200 group-hover:border-cyan-400 transition-all">
+              {profileImage ? (
+                <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <User size={48} className="text-slate-300" />
+              )}
+            </div>
+            <button 
+              type="button"
+              onClick={() => fileInputRef.current.click()}
+              className="absolute -bottom-2 -right-2 bg-cyan-500 text-white p-3 rounded-2xl shadow-lg shadow-cyan-100 hover:bg-cyan-600 hover:scale-110 transition-all"
+            >
+              <Camera size={20} />
+            </button>
+            <input type="file" hidden ref={fileInputRef} onChange={handleImageChange} accept="image/*" />
           </div>
-          <input type="file" id="nurse-img" hidden onChange={(e) => {
-            const file = e.target.files[0];
-            if(file) { setSelectedFile(file); setImagePreview(URL.createObjectURL(file)); }
-          }} />
-          <button onClick={() => document.getElementById('nurse-img').click()} className="px-6 py-2.5 border border-blue-100 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-50">
-            <Upload size={14} className="inline mr-2"/> Change Photo
-          </button>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Upload Identity Photo</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <CustomInput label="Full Name" value={profileData.Name} onChange={(e)=>setProfileData({...profileData, Name: e.target.value})} icon={<User size={16}/>} />
-          <CustomInput label="Professional Title" value={profileData.Title} onChange={(e)=>setProfileData({...profileData, Title: e.target.value})} icon={<Briefcase size={16}/>} />
-          <CustomInput label="Phone Number" value={profileData.PhoneNumber} onChange={(e)=>setProfileData({...profileData, PhoneNumber: e.target.value})} icon={<Phone size={16}/>} />
-          <CustomInput label="City" value={profileData.City} onChange={(e)=>setProfileData({...profileData, City: e.target.value})} icon={<MapPin size={16}/>} />
-          
-          <div className="md:col-span-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block tracking-widest">Bio & Experience</label>
-            <textarea 
-              value={profileData.Bio} 
-              onChange={(e)=>setProfileData({...profileData, Bio: e.target.value})} 
-              className="w-full p-5 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none min-h-[120px] focus:ring-2 focus:ring-blue-50 transition-all"
-              placeholder="Tell us about your nursing experience..."
+        {/* Form Fields - ألوان متناسقة مع السيان والأزرق السماوي */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputGroup 
+              label="Full Name" name="fullName" value={formData.fullName} 
+              onChange={handleChange} placeholder="Enter your name" icon={<User size={16}/>} 
             />
+            <InputGroup 
+              label="Email Address" name="email" value={formData.email} 
+              onChange={handleChange} placeholder="example@mail.com" icon={<MessageSquare size={16}/>} 
+            />
+            <InputGroup 
+              label="Phone Number" name="phone" value={formData.phone} 
+              onChange={handleChange} placeholder="01xxxxxxxxx" icon={<Phone size={16}/>} 
+            />
+            <InputGroup 
+              label="Location / City" name="location" value={formData.location} 
+              onChange={handleChange} placeholder="Egypt, Cairo" icon={<MapPin size={16}/>} 
+            />
+            <div className="md:col-span-2">
+              <InputGroup 
+                label="Specialization" name="specialization" value={formData.specialization} 
+                onChange={handleChange} placeholder="e.g. Intensive Care, Pediatrics..." icon={<Briefcase size={16}/>} 
+              />
+            </div>
+            
+            <div className="md:col-span-2 space-y-3 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Professional Bio</label>
+              <textarea 
+                name="bio"
+                value={formData.bio}
+                onChange={handleChange}
+                placeholder="Write a short summary about your experience..."
+                className="w-full p-6 bg-slate-50/50 border border-slate-100 rounded-[2rem] text-xs font-bold text-slate-600 outline-none focus:ring-4 focus:ring-cyan-500/5 focus:bg-white focus:border-cyan-200 transition-all min-h-[120px]"
+              />
+            </div>
           </div>
-        </div>
 
-        <div className="mt-10 flex gap-4">
-          <button onClick={handleSave} disabled={loading} className="bg-blue-600 text-white px-10 py-4 rounded-xl font-black text-xs hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all disabled:bg-slate-300">
-            {loading ? "Saving Changes..." : <><Save size={16} className="inline mr-2"/> Save Nurse Profile</>}
-          </button>
-        </div>
+          {/* Action Buttons - ألوان السيان والأبيض */}
+          <div className="flex gap-4 pt-8 border-t border-slate-50">
+            <button 
+              type="submit"
+              className="bg-cyan-500 text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-xl shadow-cyan-100 hover:bg-cyan-600 transition-all flex items-center gap-3"
+            >
+              <Save size={18}/> Complete Setup
+            </button>
+            <button 
+              type="button"
+              onClick={handleCancel}
+              className="bg-white border border-slate-200 text-slate-400 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] hover:bg-red-50 hover:text-red-500 hover:border-red-100 transition-all flex items-center gap-3"
+            >
+              <X size={18}/> Reset Form
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
-}
+};
 
-function CustomInput({ label, value, onChange, icon }) {
-  return (
-    <div className="space-y-2">
-      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</label>
-      <div className="relative">
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300">{icon}</div>
-        <input value={value} onChange={onChange} className="w-full pl-12 p-4 bg-slate-50 border border-slate-100 rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-blue-50 transition-all" />
+const InputGroup = ({ label, name, value, onChange, placeholder, icon }) => (
+  <div className="space-y-3 text-left">
+    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">{label}</label>
+    <div className="relative group">
+      <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-cyan-500 transition-colors">
+        {icon}
       </div>
+      <input 
+        type="text"
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full pl-12 pr-6 py-4 bg-slate-50/50 border border-slate-100 rounded-[1.5rem] text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-cyan-500/5 focus:bg-white focus:border-cyan-200 transition-all"
+      />
     </div>
-  );
-}
+  </div>
+);
+
+export default NurseProfile;

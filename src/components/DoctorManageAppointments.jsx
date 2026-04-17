@@ -1,204 +1,195 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from "react";
+import { useNavigate } from 'react-router-dom'; // أضفنا هذا للتوجيه
 import { 
-  Clock, DollarSign, Home, Globe, Building, 
-  CheckCircle, Calendar, Plus, Trash2, X, User 
+  Calendar, Clock, User, MapPin, Video, Home, 
+  ChevronRight, Plus, DollarSign, X, FileText, Trash2, CheckCircle2, Search
 } from "lucide-react";
-import api from '../api/axios';
 
-export default function DoctorManageAppointments() {
-  const [settings, setSettings] = useState({
-    price: 0,
-    isHomeVisitAvailable: false,
-    isOnlineAvailable: false,
-    isClinicAvailable: true,
+const initialSchedule = {
+  "Monday 2/9/2026": ["09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00"],
+  "Tuesday 2/10/2026": ["09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30"]
+};
+
+// بيانات المواعيد (تأكد أن الـ Status والـ Type مطابقة للفلاتر)
+const initialAppointments = [
+  { id: 1, name: "John Doe", status: "Confirmed", date: "Wed, Feb 4", time: "09:00", type: "In-Person", record: "..." },
+  { id: 2, name: "Jane Smith", status: "Pending", date: "Wed, Feb 4", time: "09:30", type: "Online", record: "..." },
+  { id: 3, name: "Soraia Mohamed", status: "Canceled", date: "Wed, Feb 4", time: "10:00", type: "Home Visit", record: "..." },
+  { id: 4, name: "Ahmed Ibrahim", status: "Completed", date: "Wed, Feb 4", time: "11:00", type: "In-Person", record: "..." },
+];
+
+export default function AppointmentManagement() {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState("appointments");
+  const [schedule, setSchedule] = useState(initialSchedule);
+  const [prices, setPrices] = useState({ clinic: "100", online: "80", home: "150" });
+  
+  // --- States الجديدة للفلاتر والـ Pagination ---
+  const [filters, setFilters] = useState({ name: "", status: "all", type: "all" });
+  const [currentPage, setCurrentPage] = useState(1);
+  const recordsPerPage = 3; 
+
+  // --- Logic الفلترة ---
+  const filteredAppointments = initialAppointments.filter((appt) => {
+    const matchName = appt.name.toLowerCase().includes(filters.name.toLowerCase());
+    const matchStatus = filters.status === "all" || appt.status === filters.status;
+    const matchType = filters.type === "all" || 
+                     (filters.type === "online" && appt.type === "Online") ||
+                     (filters.type === "home" && appt.type === "Home Visit") ||
+                     (filters.type === "location" && appt.type === "In-Person");
+    return matchName && matchStatus && matchType;
   });
 
-  const [newSlot, setNewSlot] = useState({ date: '', startTime: '', endTime: '' });
-  const [mySlots, setMySlots] = useState([]); 
-  const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+  // --- Logic الـ Pagination ---
+  const lastIndex = currentPage * recordsPerPage;
+  const firstIndex = lastIndex - recordsPerPage;
+  const currentRecords = filteredAppointments.slice(firstIndex, lastIndex);
+  const nPages = Math.ceil(filteredAppointments.length / recordsPerPage);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const deleteSlot = (day, time) => {
+    setSchedule(prev => ({ ...prev, [day]: prev[day].filter(t => t !== time) }));
+  };
 
-  const fetchData = async () => {
-    try {
-      const settingsRes = await api.get('/api/Doctors/profile');
-      const slotsRes = await api.get('/api/Doctors/me/schedule'); 
-      const appointmentsRes = await api.get('/api/doctor-appointments/me');
-
-      setMySlots(slotsRes.data || []);
-      setUpcomingAppointments(appointmentsRes.data || []);
-    } catch (err) {
-      console.error("Error fetching data", err);
+  const addSlot = (day) => {
+    const newTime = prompt("Enter new time (e.g., 16:00):");
+    if (newTime) {
+      setSchedule(prev => ({ ...prev, [day]: [...prev[day], newTime].sort() }));
     }
   };
 
-  const handleAddSlot = async () => {
-    try {
-      await api.post('/api/doctors/me/slots', newSlot);
-      alert("Slot added successfully! ✅");
-      fetchData();
-    } catch (err) {
-      alert("Failed to add slot");
-    }
+  const deleteDay = (day) => {
+    const updated = { ...schedule };
+    delete updated[day];
+    setSchedule(updated);
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-10" dir="ltr">
-      <div className="max-w-[1600px] mx-auto space-y-10">
+    <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 font-sans text-slate-900">
+      <div className="max-w-6xl mx-auto space-y-8">
         
-        {/* 1. Consultation Settings Section */}
-        <section className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-50">
-          <h2 className="text-xl font-black text-slate-800 mb-8 flex items-center gap-3">
-            <div className="p-2 bg-cyan-50 text-cyan-500 rounded-xl"><DollarSign size={20}/></div>
-            Consultation Settings
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="space-y-3">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Price (EGP)</label>
-              <input 
-                type="number" 
-                value={settings.price} 
-                onChange={(e) => setSettings({...settings, price: e.target.value})}
-                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-[1.5rem] font-black text-slate-700 outline-none focus:ring-4 focus:ring-cyan-50 transition-all"
-                placeholder="0.00"
-              />
-            </div>
-            <ToggleOption icon={<Globe size={20}/>} label="Online" active={settings.isOnlineAvailable} onClick={() => setSettings({...settings, isOnlineAvailable: !settings.isOnlineAvailable})} />
-            <ToggleOption icon={<Home size={20}/>} label="Home Visit" active={settings.isHomeVisitAvailable} onClick={() => setSettings({...settings, isHomeVisitAvailable: !settings.isHomeVisitAvailable})} />
-            <ToggleOption icon={<Building size={20}/>} label="Clinic" active={settings.isClinicAvailable} onClick={() => setSettings({...settings, isClinicAvailable: !settings.isClinicAvailable})} />
+        {/* Tabs Switcher */}
+        <div className="flex justify-center w-full mb-12"> 
+          <div className="flex bg-white p-1.5 rounded-[2.5rem] shadow-sm border border-slate-100 w-full max-w-[500px]">
+            <button onClick={() => setTab("appointments")} className={`flex-1 py-4 rounded-[2rem] text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${tab === "appointments" ? "bg-cyan-500 text-white shadow-lg shadow-cyan-100" : "text-slate-400 hover:text-slate-600"}`}>Appointments</button>
+            <button onClick={() => setTab("schedule")} className={`flex-1 py-4 rounded-[2rem] text-[11px] font-black uppercase tracking-widest transition-all duration-300 ${tab === "schedule" ? "bg-cyan-500 text-white shadow-lg shadow-cyan-100" : "text-slate-400 hover:text-slate-600"}`}>My Schedule</button>
           </div>
-        </section>
+        </div>
 
-        {/* 2. Main Grid Layout - مقسومة نصين */}
-        <div className="grid grid-cols-1 xl:grid-cols-5 gap-10">
-          
-          {/* النص اليسار: إدارة المواعيد المتاحة (Schedule / Slots) */}
-          <div className="xl:col-span-2 space-y-8">
-            <div className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm">
-              <h2 className="text-lg font-black text-slate-800 mb-8 flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-500 rounded-xl"><Clock size={20}/></div>
-                Create Work Slots
-              </h2>
-              <div className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Date</label>
-                  <input type="date" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-600 outline-none focus:ring-4 focus:ring-blue-50" onChange={(e)=>setNewSlot({...newSlot, date: e.target.value})}/>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">From</label>
-                    <input type="time" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-600" onChange={(e)=>setNewSlot({...newSlot, startTime: e.target.value})}/>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">To</label>
-                    <input type="time" className="w-full p-4 bg-slate-50 rounded-2xl border border-slate-100 font-bold text-slate-600" onChange={(e)=>setNewSlot({...newSlot, endTime: e.target.value})}/>
-                  </div>
-                </div>
-                <button onClick={handleAddSlot} className="w-full py-4 bg-cyan-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-cyan-600 transition-all shadow-lg shadow-cyan-100 mt-4">
-                  <Plus size={18} strokeWidth={3}/> Add Time Slot
-                </button>
+        {tab === "appointments" && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+            
+            {/* --- قسم الفلاتر الجديد --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-50">
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
+                <input type="text" placeholder="Search by name..." className="w-full pl-12 pr-4 py-3 bg-slate-50 rounded-2xl border-none text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-100" onChange={(e) => {setFilters({...filters, name: e.target.value}); setCurrentPage(1);}} />
               </div>
+              <select className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-100 text-slate-500" onChange={(e) => {setFilters({...filters, status: e.target.value}); setCurrentPage(1);}}>
+                <option value="all">All Statuses</option>
+                <option value="Pending">Pending</option>
+                <option value="Confirmed">Confirmed</option>
+                <option value="Completed">Completed</option>
+                <option value="Canceled">Canceled</option>
+              </select>
+              <select className="bg-slate-50 px-4 py-3 rounded-2xl border-none text-xs font-bold outline-none focus:ring-2 focus:ring-cyan-100 text-slate-500" onChange={(e) => {setFilters({...filters, type: e.target.value}); setCurrentPage(1);}}>
+                <option value="all">All Types</option>
+                <option value="online">Online</option>
+                <option value="home">At Home</option>
+                <option value="location">At Clinic</option>
+              </select>
             </div>
 
-            {/* عرض الـ Slots الحالية اللي الدكتور ضافها */}
-            <div className="space-y-4">
-               <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] ml-4">Current Available Slots</h3>
-               <div className="grid grid-cols-1 gap-4">
-                  {mySlots.map((slot, i) => (
-                    <div key={i} className="bg-white p-5 rounded-[2rem] border border-slate-50 flex justify-between items-center group hover:border-cyan-200 transition-all">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-cyan-50 text-cyan-500 rounded-xl flex items-center justify-center font-bold text-xs">
-                          {i+1}
-                        </div>
-                        <div>
-                          <p className="font-black text-slate-700 text-sm">{slot.date}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{slot.startTime} - {slot.endTime}</p>
-                        </div>
-                      </div>
-                      <button className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100">
-                        <Trash2 size={18}/>
-                      </button>
-                    </div>
-                  ))}
-               </div>
-            </div>
-          </div>
-
-          {/* النص اليمين: الحجوزات القادمة (Upcoming Appointments) */}
-          <div className="xl:col-span-3">
-            <div className="bg-white p-10 rounded-[3.5rem] shadow-sm border border-slate-50 min-h-[600px]">
-              <div className="flex justify-between items-center mb-10">
-                <h2 className="text-xl font-black text-slate-800 flex items-center gap-3">
-                  <div className="p-2 bg-purple-50 text-purple-500 rounded-xl"><Calendar size={20}/></div>
-                  Upcoming Appointments
-                </h2>
-                <div className="px-4 py-2 bg-slate-50 rounded-full text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  Total: {upcomingAppointments.length}
-                </div>
-              </div>
-
+            <div className="bg-white rounded-[3rem] p-8 md:p-12 shadow-sm border border-slate-50">
               <div className="space-y-4">
-                {upcomingAppointments.map((app) => (
-                  <div key={app.id} className="p-6 bg-white border border-slate-100 rounded-[2.5rem] hover:shadow-xl hover:shadow-cyan-100/20 transition-all duration-500 flex items-center justify-between group">
+                {currentRecords.map((appt) => (
+                  <div key={appt.id} className="group flex flex-col md:flex-row md:items-center justify-between p-6 bg-slate-50/50 rounded-[2.5rem] border border-transparent hover:bg-white hover:border-cyan-100 hover:shadow-xl transition-all duration-300">
                     <div className="flex items-center gap-6">
-                      <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center text-cyan-500 group-hover:bg-cyan-500 group-hover:text-white transition-all duration-500">
-                        <User size={24} />
-                      </div>
-                      <div>
-                        <h4 className="font-black text-slate-800 text-lg tracking-tight">{app.patientName}</h4>
-                        <div className="flex gap-4 mt-1">
-                          <span className="text-[10px] font-black text-cyan-500 uppercase tracking-widest flex items-center gap-1">
-                            <Clock size={12}/> {app.time}
-                          </span>
-                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest border-l pl-4 border-slate-100">
-                            {app.type}
+                      <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-cyan-500 shadow-sm group-hover:bg-cyan-500 group-hover:text-white transition-colors"><User size={24} /></div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                          <h3 className="font-black text-slate-700">{appt.name}</h3>
+                          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${appt.status === 'Confirmed' ? 'text-green-500 bg-green-50' : appt.status === 'Canceled' ? 'text-red-500 bg-red-50' : 'text-blue-500 bg-blue-50'}`}>{appt.status}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-4 text-slate-400 font-bold text-[11px]">
+                          <span className="flex items-center gap-1.5"><Calendar size={14}/> {appt.date}</span>
+                          <span className="flex items-center gap-1.5"><Clock size={14}/> {appt.time}</span>
+                          <span className="flex items-center gap-1.5">
+                            {appt.type === 'Online' ? <Video size={14}/> : appt.type === 'Home Visit' ? <Home size={14}/> : <MapPin size={14}/>}
+                            {appt.type}
                           </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                       <button className="bg-slate-50 text-slate-400 p-4 rounded-2xl hover:bg-green-50 hover:text-green-500 transition-all shadow-sm">
-                         <CheckCircle size={20}/>
-                       </button>
-                       <button className="bg-slate-50 text-slate-400 p-4 rounded-2xl hover:bg-red-50 hover:text-red-500 transition-all shadow-sm">
-                         <X size={20}/>
-                       </button>
-                    </div>
+                    {/* التعديل هنا للتحويل لصفحة المريض */}
+                    <button onClick={() => navigate(`/doctor/patient-profile/${appt.id}`)} className="mt-4 md:mt-0 flex items-center gap-2 text-cyan-500 font-black text-[10px] uppercase tracking-widest hover:gap-4 transition-all">
+                      View Medical Record <ChevronRight size={16} />
+                    </button>
                   </div>
                 ))}
-
-                {upcomingAppointments.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-20 opacity-20">
-                    <Calendar size={80} strokeWidth={1}/>
-                    <p className="mt-4 font-black uppercase tracking-widest text-sm">No Appointments Scheduled</p>
-                  </div>
-                )}
               </div>
+
+              {/* --- أزرار Pagination --- */}
+              {nPages > 1 && (
+                <div className="flex justify-center items-center gap-3 mt-10">
+                  <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 text-slate-400 hover:text-cyan-500 disabled:opacity-30"><ChevronRight className="rotate-180" /></button>
+                  {[...Array(nPages)].map((_, i) => (
+                    <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-8 h-8 rounded-full text-[10px] font-black transition-all ${currentPage === i + 1 ? 'bg-cyan-500 text-white shadow-lg shadow-cyan-100' : 'text-slate-400 hover:bg-slate-50'}`}>{i + 1}</button>
+                  ))}
+                  <button disabled={currentPage === nPages} onClick={() => setCurrentPage(p => p + 1)} className="p-2 text-slate-400 hover:text-cyan-500 disabled:opacity-30"><ChevronRight /></button>
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-        </div>
-      </div>
-    </div>
-  );
-}
+        {/* --- Tab 2: My Schedule (بقي كما هو دون تغيير) --- */}
+        {tab === "schedule" && (
+          <div className="space-y-6 animate-in fade-in">
+             <div className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-50">
+               <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-8 flex items-center gap-2">
+                 <DollarSign size={18} className="text-cyan-500" /> Pricing Settings
+               </h2>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                 {Object.keys(prices).map((key) => (
+                   <div key={key} className="space-y-3">
+                     <label className="text-[10px] font-black text-slate-400 uppercase ml-2">{key} Visit Price</label>
+                     <div className="relative group">
+                       <div className="absolute left-5 top-1/2 -translate-y-1/2 text-cyan-500 font-bold">$</div>
+                       <input type="number" value={prices[key]} onChange={(e) => setPrices({...prices, [key]: e.target.value})} className="w-full pl-10 pr-6 py-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white transition-all font-bold text-slate-700" />
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
 
-function ToggleOption({ icon, label, active, onClick }) {
-  return (
-    <div 
-      onClick={onClick}
-      className={`p-6 rounded-[2rem] border-2 cursor-pointer transition-all flex flex-col items-center gap-3 ${
-        active 
-          ? 'bg-cyan-500 text-white border-cyan-500 shadow-xl shadow-cyan-100' 
-          : 'bg-white text-slate-300 border-slate-50 hover:border-cyan-100 hover:text-cyan-500'
-      }`}
-    >
-      <div className={`transition-transform duration-500 ${active ? 'scale-110' : ''}`}>
-        {icon}
+             <div className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-50">
+               <div className="flex justify-between items-center mb-10">
+                 <h2 className="text-sm font-black text-slate-700 uppercase tracking-widest">Weekly Availability</h2>
+                 <button className="text-[10px] font-black uppercase tracking-widest bg-slate-50 text-slate-400 px-6 py-3 rounded-xl hover:bg-slate-100 transition-colors">Repeat Previous Week</button>
+               </div>
+               <div className="space-y-10">
+                 {Object.keys(schedule).map((day) => (
+                   <div key={day} className="relative pl-6 border-l-2 border-slate-100">
+                     <div className="flex justify-between items-center mb-4">
+                       <h3 className="text-sm font-black text-slate-700">{day}</h3>
+                       <button onClick={() => deleteDay(day)} className="text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
+                     </div>
+                     <div className="flex flex-wrap gap-3">
+                       {schedule[day].map((time) => (
+                         <div key={time} className="group flex items-center gap-2 bg-cyan-50 text-cyan-600 px-5 py-2.5 rounded-2xl font-bold text-xs border border-cyan-100 hover:bg-cyan-500 hover:text-white transition-all">
+                           {time}
+                           <button onClick={() => deleteSlot(day, time)}><X size={14} /></button>
+                         </div>
+                       ))}
+                       <button onClick={() => addSlot(day)} className="flex items-center gap-2 bg-slate-50 text-slate-400 px-5 py-2.5 rounded-2xl font-bold text-xs border border-dashed border-slate-200 hover:border-cyan-500 hover:text-cyan-500 transition-all"><Plus size={14} /> Add Slot</button>
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+          </div>
+        )}
       </div>
-      <span className="text-[10px] font-black uppercase tracking-[0.1em]">{label}</span>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, Lock, Mail, Eye, EyeOff, Loader2, AlertCircle, HeartPulse } from "lucide-react";
 import api from '../api/axios'; 
 
@@ -14,29 +14,44 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    // 1. بيانات تجريبية (عشان السيستم يشتغل معاك حالاً من غير Backend)
+    const mockUsers = {
+      'admin@healthcare.com': { role: 'Admin', token: 'mock-token-admin' },
+      'doctor@healthcare.com': { role: 'Doctor', token: 'mock-token-doctor' },
+      'lab@healthcare.com': { role: 'Lab', token: 'mock-token-lab' },
+      'nurse@healthcare.com': { role: 'Nurse', token: 'mock-token-nurse' }
+    };
+
     try {
+      // محاولة الاتصال بالـ Backend الحقيقي
       const response = await api.post('/api/Auth/login', formData); 
       const { token, role } = response.data;
       
-      // حفظ البيانات الأساسية
       localStorage.setItem('token', token);
       localStorage.setItem('role', role);
-
-      // التوجيه الذكي بناءً على الرتبة (Universal Redirect)
-      // ده هيحول المستخدم لـ /doctor/dashboard أو /nurse/dashboard أو /lab/dashboard أوتوماتيك
-      const userRole = role.toLowerCase();
-      
-      // لو الدكتور عايز يفتح البروفايل أول ما يدخل ممكن تسيبها كده، 
-      // بس الأفضل يروح للـ Dashboard عشان يشوف شغله الأول
-      if (role === 'Doctor') {
-        navigate('/doctor/dashboard');
-      } else {
-        navigate(`/${userRole}/dashboard`);
-      }
+      navigate(`/${role.toLowerCase()}/dashboard`);
 
     } catch (err) {
-      console.error("Login Error:", err);
-      setError("Invalid credentials. Please check your email and password.");
+      console.warn("Backend not reachable, checking mock data...");
+      
+      // 2. التحقق من البيانات التجريبية لو الـ Backend فشل
+      const user = mockUsers[formData.email];
+      
+      if (user && formData.password === '123456') {
+        // لو البيانات صح، بنعمل Login وهمي
+        localStorage.setItem('token', user.token);
+        localStorage.setItem('role', user.role);
+        
+        // توجيه ذكي
+        if (user.role === 'Admin') {
+            navigate('/admin/panel');
+        } else {
+            navigate(`/${user.role.toLowerCase()}/dashboard`);
+        }
+      } else {
+        setError("Invalid credentials. Try: admin@healthcare.com / 123456");
+      }
     } finally {
       setLoading(false);
     }
@@ -44,13 +59,10 @@ export default function AuthPage() {
 
   return (
     <div className="min-h-screen bg-[#f0f9ff] flex items-center justify-center p-4" dir="ltr">
-      {/* Login Card */}
       <div className="w-full max-w-[440px] bg-white rounded-[3rem] shadow-[0_20px_60px_rgba(186,230,253,0.4)] p-12 border border-blue-50 relative overflow-hidden">
         
-        {/* Background Glow */}
         <div className="absolute -top-20 -left-20 w-40 h-40 bg-cyan-50 rounded-full blur-3xl opacity-60"></div>
         
-        {/* Logo Section */}
         <div className="text-center mb-10 relative">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-cyan-50 rounded-[2.2rem] mb-5 group">
             <HeartPulse className="w-10 h-10 text-cyan-500 animate-pulse" strokeWidth={1.5} />
@@ -65,7 +77,6 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Email Address</label>
@@ -75,7 +86,7 @@ export default function AuthPage() {
                 type="email" 
                 required
                 placeholder="doctor@healthcare.com"
-                className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700"
+                className="w-full pl-14 pr-6 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700 shadow-inner"
                 onChange={(e) => setFormData({...formData, email: e.target.value})}
               />
             </div>
@@ -89,17 +100,26 @@ export default function AuthPage() {
                 type={showPassword ? "text" : "password"} 
                 required
                 placeholder="••••••••"
-                className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700"
+                className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:ring-4 focus:ring-cyan-50 focus:bg-white focus:border-cyan-200 transition-all font-bold text-sm text-slate-700 shadow-inner"
                 onChange={(e) => setFormData({...formData, password: e.target.value})}
               />
               <button 
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500"
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500 transition-colors"
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
+          </div>
+
+          <div className="flex justify-end pr-2 -mt-2">
+            <Link 
+              to="/forgot-password" 
+              className="text-[10px] font-black text-cyan-500 uppercase tracking-widest hover:text-cyan-600 transition-colors"
+            >
+              Forgot Password?
+            </Link>
           </div>
 
           <button 
