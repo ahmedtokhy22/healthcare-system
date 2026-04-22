@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { useNavigate } from 'react-router-dom'; // أضفنا هذا للتوجيه
+import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, Clock, User, MapPin, Video, Home, 
-  ChevronRight, Plus, DollarSign, X, FileText, Trash2, CheckCircle2, Search
+  ChevronRight, Plus, DollarSign, X, FileText, Trash2, CheckCircle2, Search, Check, Ban
 } from "lucide-react";
 
 const initialSchedule = {
@@ -10,7 +10,6 @@ const initialSchedule = {
   "Tuesday 2/10/2026": ["09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30"]
 };
 
-// بيانات المواعيد (تأكد أن الـ Status والـ Type مطابقة للفلاتر)
 const initialAppointments = [
   { id: 1, name: "John Doe", status: "Confirmed", date: "Wed, Feb 4", time: "09:00", type: "In-Person", record: "..." },
   { id: 2, name: "Jane Smith", status: "Pending", date: "Wed, Feb 4", time: "09:30", type: "Online", record: "..." },
@@ -24,13 +23,22 @@ export default function AppointmentManagement() {
   const [schedule, setSchedule] = useState(initialSchedule);
   const [prices, setPrices] = useState({ clinic: "100", online: "80", home: "150" });
   
-  // --- States الجديدة للفلاتر والـ Pagination ---
+  // دمج المواعيد في State لتحديث الحالة (Accept/Reject)
+  const [appointments, setAppointments] = useState(initialAppointments);
+
   const [filters, setFilters] = useState({ name: "", status: "all", type: "all" });
   const [currentPage, setCurrentPage] = useState(1);
   const recordsPerPage = 3; 
 
+  // دالة تحديث الحالة (قبول/رفض)
+  const handleStatusUpdate = (id, newStatus) => {
+    setAppointments(prev => prev.map(appt => 
+      appt.id === id ? { ...appt, status: newStatus } : appt
+    ));
+  };
+
   // --- Logic الفلترة ---
-  const filteredAppointments = initialAppointments.filter((appt) => {
+  const filteredAppointments = appointments.filter((appt) => {
     const matchName = appt.name.toLowerCase().includes(filters.name.toLowerCase());
     const matchStatus = filters.status === "all" || appt.status === filters.status;
     const matchType = filters.type === "all" || 
@@ -78,7 +86,7 @@ export default function AppointmentManagement() {
         {tab === "appointments" && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
             
-            {/* --- قسم الفلاتر الجديد --- */}
+            {/* قسم الفلاتر */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-50">
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
@@ -114,21 +122,41 @@ export default function AppointmentManagement() {
                           <span className="flex items-center gap-1.5"><Calendar size={14}/> {appt.date}</span>
                           <span className="flex items-center gap-1.5"><Clock size={14}/> {appt.time}</span>
                           <span className="flex items-center gap-1.5">
-                            {appt.type === 'Online' ? <Video size={14}/> : appt.type === 'Home Visit' ? <Home size={14}/> : <MapPin size={14}/>}
+                            {appt.type === 'Online' ? <Video size={14} className="text-purple-400" /> : appt.type === 'Home Visit' ? <Home size={14} className="text-orange-400" /> : <MapPin size={14}/>}
                             {appt.type}
                           </span>
                         </div>
                       </div>
                     </div>
-                    {/* التعديل هنا للتحويل لصفحة المريض */}
-                    <button onClick={() => navigate(`/doctor/patient-profile/${appt.id}`)} className="mt-4 md:mt-0 flex items-center gap-2 text-cyan-500 font-black text-[10px] uppercase tracking-widest hover:gap-4 transition-all">
-                      View Medical Record <ChevronRight size={16} />
-                    </button>
+
+                    {/* منطق أزرار التحكم في طلبات الحجز */}
+                    <div className="flex items-center gap-4 mt-4 md:mt-0">
+                      {appt.status === "Pending" && (appt.type === "Online" || appt.type === "Home Visit") ? (
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => handleStatusUpdate(appt.id, "Confirmed")}
+                            className="bg-green-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-green-600 transition-all shadow-md shadow-green-100"
+                          >
+                            <Check size={14} /> Accept
+                          </button>
+                          <button 
+                            onClick={() => handleStatusUpdate(appt.id, "Canceled")}
+                            className="bg-white text-red-500 border border-red-100 px-4 py-2 rounded-xl text-[10px] font-black uppercase flex items-center gap-2 hover:bg-red-50 transition-all"
+                          >
+                            <Ban size={14} /> Decline
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => navigate(`/doctor/patient-profile/${appt.id}`)} className="flex items-center gap-2 text-cyan-500 font-black text-[10px] uppercase tracking-widest hover:gap-4 transition-all">
+                          View Medical Record <ChevronRight size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
 
-              {/* --- أزرار Pagination --- */}
+              {/* أزرار Pagination */}
               {nPages > 1 && (
                 <div className="flex justify-center items-center gap-3 mt-10">
                   <button disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} className="p-2 text-slate-400 hover:text-cyan-500 disabled:opacity-30"><ChevronRight className="rotate-180" /></button>
@@ -142,7 +170,7 @@ export default function AppointmentManagement() {
           </div>
         )}
 
-        {/* --- Tab 2: My Schedule (بقي كما هو دون تغيير) --- */}
+        {/* Tab 2: My Schedule */}
         {tab === "schedule" && (
           <div className="space-y-6 animate-in fade-in">
              <div className="bg-white rounded-[3rem] p-10 shadow-sm border border-slate-50">

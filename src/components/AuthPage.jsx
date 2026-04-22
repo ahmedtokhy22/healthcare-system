@@ -25,7 +25,7 @@ export default function AuthPage() {
 
     try {
       // محاولة الاتصال بالـ Backend الحقيقي
-      const response = await api.post('/api/Auth/login', formData); 
+     const response = await login(loginData); 
       const { token, role } = response.data;
       
       localStorage.setItem('token', token);
@@ -33,7 +33,7 @@ export default function AuthPage() {
       navigate(`/${role.toLowerCase()}/dashboard`);
 
     } catch (err) {
-      console.warn("Backend not reachable, checking mock data...");
+      console.warn("Backend not reachable");
       
       // 2. التحقق من البيانات التجريبية لو الـ Backend فشل
       const user = mockUsers[formData.email];
