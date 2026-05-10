@@ -37,13 +37,14 @@ export default function PendingRequests({ type }) {
   const handleAction = async (id, newStatus) => {
     setActionLoading(id);
     setStatusMsg({ type: '', text: '' });
-    const actionPath = type === 'Doctor' ? 'doctor-appointments' : (type === 'Lab' ? 'lab-appointments' : 'nurse-appointments');
+    const actionPath = type === 'Doctor' ? 'doctor' : (type === 'Lab' ? 'lab' : 'nurse');
     
     try {
       // المحاولة الأولى: إرسال كـ Object (وهو المعيار الأحدث)
-      await axios.put(
-        `${API_BASE_URL}/api/${actionPath}/${id}/status`, 
-        { status: newStatus }, 
+      await axios.patch(
+        `${API_BASE_URL}/api/Appointments/${id}/confrimation`, 
+        { appointmentType: type,
+          status: newStatus }, 
         { headers }
       );
       
@@ -51,8 +52,8 @@ export default function PendingRequests({ type }) {
     } catch (err) {
       // المحاولة الثانية: في حال كان السيرفر يتوقع String صريح (Fallback)
       try {
-        await axios.put(
-          `${API_BASE_URL}/api/${actionPath}/${id}/status`, 
+        await axios.patch(
+          `${API_BASE_URL}/api/Appointments/${id}/confrimation`, 
           `"${newStatus}"`, 
           { headers }
         );

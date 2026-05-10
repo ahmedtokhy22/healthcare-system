@@ -3,14 +3,9 @@ import {
   Send,
   Loader2,
   MessageSquare,
-  Phone,
-  Video,
   Search,
   CheckCheck,
-  MoreVertical,
-  Paperclip,
-  Smile,
-  User
+  Circle
 } from "lucide-react";
 import * as signalR from "@microsoft/signalr";
 import axios from "axios";
@@ -29,18 +24,16 @@ export default function ProfessionalDoctorChat() {
   const [isConnected, setIsConnected] = useState(false);
 
   const scrollRef = useRef(null);
-  // Ref لمتابعة الشات النشط جوه الـ SignalR callback
   const activeChatRef = useRef(null);
 
   const token = localStorage.getItem("token");
-  const currentUserId = localStorage.getItem("userId"); 
+  const currentUserId = localStorage.getItem("id");
   const userName = localStorage.getItem("userName");
 
   useEffect(() => {
     activeChatRef.current = activeChat;
   }, [activeChat]);
 
-  // 1. جلب قائمة المحادثات
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -57,10 +50,8 @@ export default function ProfessionalDoctorChat() {
     if (token) fetchChats();
   }, [token]);
 
-  // 2. إعداد SignalR
   useEffect(() => {
     if (!token) return;
-
     const newConnection = new signalR.HubConnectionBuilder()
       .withUrl(`${API_BASE_URL}/healthcare-hub`, {
         accessTokenFactory: () => token,
@@ -69,30 +60,24 @@ export default function ProfessionalDoctorChat() {
       })
       .withAutomaticReconnect()
       .build();
-
     setConnection(newConnection);
   }, [token]);
 
-  // 3. استقبال الرسائل
   useEffect(() => {
     if (!connection) return;
-
     connection.start()
       .then(() => {
         setIsConnected(true);
         connection.on("ReceiveMessage", (message) => {
-          // التأكد أن الرسالة تخص الشات المفتوح حالياً
           if (activeChatRef.current && String(message.chatId) === String(activeChatRef.current.id)) {
             setMessages((prev) => [...prev, message]);
           }
         });
       })
       .catch((err) => console.error("SignalR Connection Error:", err));
-
     return () => { connection.stop(); };
   }, [connection]);
 
-  // 4. اختيار الشات وجلب التاريخ
   const handleChatSelection = async (chat) => {
     setActiveChat(chat);
     setMessages([]);
@@ -102,10 +87,7 @@ export default function ProfessionalDoctorChat() {
         headers: { Authorization: `Bearer ${token}` },
       });
       setMessages(res.data.items || []);
-      
-      if (isConnected) {
-        await connection.invoke("JoinChat", chat.id);
-      }
+      if (isConnected) await connection.invoke("JoinChat", chat.id);
     } catch (err) {
       console.error("Load History Error:", err);
     } finally {
@@ -113,14 +95,23 @@ export default function ProfessionalDoctorChat() {
     }
   };
 
-  // 5. إرسال رسالة
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!messageInput.trim() || !isConnected || !activeChat) return;
 
+    const newMessage = {
+      content: messageInput,
+      senderId: currentUserId,
+      chatId: activeChat.id,
+      createdAt: new Date().toISOString()
+    };
+
+    setMessages((prev) => [...prev, newMessage]);
+    const textToSend = messageInput;
+    setMessageInput("");
+
     try {
-      await connection.invoke("SendMessage", activeChat.id, messageInput);
-      setMessageInput("");
+      await connection.invoke("SendMessage", activeChat.id, textToSend);
     } catch (err) {
       console.error("Send Error:", err);
     }
@@ -135,116 +126,99 @@ export default function ProfessionalDoctorChat() {
   );
 
   return (
-    <div className="flex h-[90vh] bg-[#f0f2f5] rounded-2xl shadow-2xl overflow-hidden border border-gray-200 mx-auto max-w-[1500px]">
+    <div className="flex h-[88vh] bg-[#0f172a] rounded-[2.5rem] shadow-2xl overflow-hidden mx-auto max-w-[1450px] my-4 border border-slate-800">
 
-      {/* Sidebar */}
-      <div className="w-[400px] border-r bg-white flex flex-col">
-        <div className="p-4 bg-[#f0f2f5] flex justify-between items-center border-b">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-600 text-white rounded-full flex items-center justify-center font-bold">
-              {userName?.charAt(0).toUpperCase() || <User size={20}/>}
-            </div>
-            <span className="font-bold text-gray-700 text-sm">حسابي</span>
-          </div>
-          <div className="flex gap-5 text-gray-500">
-            <MessageSquare size={20} className="cursor-pointer hover:text-emerald-600" />
-            <MoreVertical size={20} className="cursor-pointer" />
-          </div>
-        </div>
-
-        <div className="p-2 bg-white">
-          <div className="flex items-center bg-[#f0f2f5] px-4 py-2 rounded-xl">
-            <Search size={18} className="text-gray-400" />
+      {/* Sidebar - Dark Glassmorphism */}
+      <div className="w-[360px] border-r border-slate-800 bg-[#1e293b]/50 flex flex-col">
+        <div className="p-8">
+          <h2 className="text-2xl font-black text-white tracking-tighter mb-6 uppercase italic">Flow<span className="text-blue-500">.</span></h2>
+          <div className="relative group">
+            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-blue-500 transition-colors" size={16} />
             <input 
-              placeholder="ابحث عن مريض..." 
+              placeholder="البحث عن مريض..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="mr-3 bg-transparent outline-none w-full text-sm text-right"
+              className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl py-3 pr-11 pl-4 text-xs font-bold text-slate-300 outline-none focus:ring-2 ring-blue-500/20 transition-all text-right"
               dir="rtl"
             />
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar">
           {loading ? (
-            <div className="flex justify-center mt-20"><Loader2 className="animate-spin text-emerald-500" /></div>
+            <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-blue-500" /></div>
           ) : (
             filteredChats.map((chat) => (
               <div
                 key={chat.id}
                 onClick={() => handleChatSelection(chat)}
-                className={`flex items-center gap-4 p-4 cursor-pointer border-b border-gray-50 transition-all ${
-                  activeChat?.id === chat.id ? "bg-[#f0f2f5]" : "hover:bg-[#f9f9f9]"
+                className={`flex items-center gap-4 p-4 mb-3 cursor-pointer rounded-2xl transition-all ${
+                  activeChat?.id === chat.id 
+                  ? "bg-blue-600 shadow-lg shadow-blue-900/20" 
+                  : "hover:bg-slate-800/50"
                 }`}
               >
-                <div className="w-12 h-12 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-slate-500 border-2 border-white">
+                <div className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-sm ${activeChat?.id === chat.id ? "bg-white/20 text-white" : "bg-slate-800 text-slate-400 border border-slate-700"}`}>
                   {chat.name?.charAt(0).toUpperCase()}
                 </div>
-                <div className="flex-1 text-right overflow-hidden" dir="rtl">
-                  <div className="flex justify-between items-center mb-1">
-                    <h4 className="font-bold text-[15px] text-gray-800">{chat.name}</h4>
-                    <span className="text-[10px] text-gray-400">اليوم</span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">{chat.lastMessage || "بدء المحادثة..."}</p>
+                <div className="flex-1 overflow-hidden text-right" dir="rtl">
+                  <h4 className={`font-black text-[13px] truncate ${activeChat?.id === chat.id ? "text-white" : "text-slate-200"}`}>{chat.name}</h4>
+                  <p className={`text-[10px] font-bold truncate mt-0.5 ${activeChat?.id === chat.id ? "text-blue-100" : "text-slate-500"}`}>{chat.lastMessage || "ابدأ المحادثة..."}</p>
                 </div>
               </div>
             ))
           )}
         </div>
+        
+        <div className="p-6 bg-slate-900/80 border-t border-slate-800 flex items-center gap-4 flex-row-reverse">
+            <div className="w-11 h-11 bg-blue-600 rounded-2xl flex items-center justify-center text-white font-black shadow-lg shadow-blue-900/40">
+                {userName?.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 text-right">
+                <p className="text-xs font-black text-white">{userName || "طبيب"}</p>
+                <p className="text-[10px] font-black text-emerald-500 flex items-center gap-1.5 justify-end"><Circle size={8} fill="currentColor" className="animate-pulse"/> متصل</p>
+            </div>
+        </div>
       </div>
 
-      {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col bg-[#efeae2] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-[0.06] pointer-events-none" 
-             style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundSize: '400px' }}></div>
-
+      {/* Main Chat - Deep Dark Theme */}
+      <div className="flex-1 flex flex-col bg-[#0f172a] relative">
         {activeChat ? (
           <>
-            <header className="p-3 bg-[#f0f2f5] flex justify-between items-center z-10 border-b shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center font-bold text-emerald-700 border-2 border-white">
+            <header className="px-10 py-5 bg-[#0f172a]/80 backdrop-blur-md flex justify-between items-center z-10 border-b border-slate-800 flex-row-reverse">
+              <div className="flex items-center gap-5 flex-row-reverse">
+                <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center font-black text-blue-500 border border-slate-700">
                   {activeChat.name?.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-800 text-sm">{activeChat.name}</h3>
-                  <p className="text-[10px] text-emerald-600 font-bold">متصل الآن</p>
+                <div className="text-right">
+                  <h3 className="font-black text-white text-[15px]">{activeChat.name}</h3>
+                  <p className="text-[10px] text-blue-400 font-black uppercase tracking-widest mt-0.5">Patient Status • Active</p>
                 </div>
-              </div>
-              <div className="flex gap-5 text-gray-500 mr-2">
-                <Video size={20} className="cursor-pointer hover:text-emerald-600" />
-                <Phone size={20} className="cursor-pointer hover:text-emerald-600" />
-                <MoreVertical size={20} className="cursor-pointer" />
               </div>
             </header>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 z-10 flex flex-col custom-scrollbar">
+            {/* Messages Area - No borders, only Bubbles */}
+            <div className="flex-1 overflow-y-auto p-10 space-y-8 z-10 flex flex-col custom-scrollbar">
               {historyLoading ? (
-                <div className="flex justify-center"><Loader2 className="animate-spin text-emerald-500" /></div>
+                <div className="flex justify-center mt-10"><Loader2 className="animate-spin text-blue-500" /></div>
               ) : (
                 messages.map((msg, i) => {
-                  // المنطق الجوهري للفصل: 
-                  // لو الـ senderId جاي من عندك يبقى يمين (True)، لو من المريض يبقى شمال (False)
                   const isMe = String(msg.senderId).trim() === String(currentUserId).trim();
-                  
                   return (
-                    <div key={i} className={`flex w-full ${isMe ? "justify-end" : "justify-start animate-in slide-in-from-left-2"}`}>
-                      <div
-                        className={`max-w-[70%] px-4 py-2 shadow-sm text-[14px] relative rounded-2xl ${
-                          isMe
-                            ? "bg-[#d9fdd3] text-gray-800 rounded-tr-none" 
-                            : "bg-white text-gray-800 rounded-tl-none"
-                        }`}
-                      >
-                        {/* عرض اسم المرسل فقط لو مش أنا */}
-                        {!isMe && <span className="text-[10px] font-bold text-emerald-600 block mb-1">المريض</span>}
-                        
-                        <p className="text-right leading-relaxed" dir="auto">{msg.content}</p>
-                        
-                        <div className={`flex items-center gap-1 mt-1 opacity-60 ${isMe ? "justify-end" : "justify-start"}`}>
-                          <span className="text-[9px]">
+                    <div key={i} className={`flex w-full ${isMe ? "justify-end" : "justify-start animate-in slide-in-from-bottom-3"}`}>
+                      <div className={`max-w-[70%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                        <div className={`px-6 py-3.5 text-sm font-bold shadow-2xl ${
+                          isMe 
+                          ? "bg-blue-600 text-white rounded-[1.8rem] rounded-tr-none shadow-blue-900/20" 
+                          : "bg-slate-800 text-slate-100 rounded-[1.8rem] rounded-tl-none shadow-black/20"
+                        }`}>
+                          <p dir="auto" className="text-right leading-relaxed">{msg.content}</p>
+                        </div>
+                        <div className={`flex items-center gap-2 mt-2 px-1 ${isMe ? "flex-row-reverse" : ""}`}>
+                          <span className="text-[9px] font-black text-slate-600 uppercase">
                             {new Date(msg.createdAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                           </span>
-                          {isMe && <CheckCheck size={14} className="text-sky-500" />}
+                          {isMe && <CheckCheck size={12} className="text-blue-500 opacity-80" />}
                         </div>
                       </div>
                     </div>
@@ -254,21 +228,20 @@ export default function ProfessionalDoctorChat() {
               <div ref={scrollRef} />
             </div>
 
-            <footer className="p-3 bg-[#f0f2f5] flex items-center gap-3 z-10 border-t">
-              <Smile className="text-gray-500 cursor-pointer hover:text-emerald-600" />
-              <Paperclip className="text-gray-500 cursor-pointer -rotate-45 hover:text-emerald-600" />
-              <form onSubmit={sendMessage} className="flex-1 flex gap-3">
+            {/* Modern Floating Footer */}
+            <footer className="p-8 bg-transparent">
+              <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex items-center gap-4 bg-slate-800/50 p-2 rounded-3xl border border-slate-700/50 backdrop-blur-xl focus-within:border-blue-500/50 transition-all">
                 <input
                   value={messageInput}
                   onChange={(e) => setMessageInput(e.target.value)}
-                  className="flex-1 bg-white rounded-xl px-5 py-3 text-sm outline-none shadow-sm text-right"
-                  placeholder="اكتب رسالة..."
+                  className="flex-1 bg-transparent px-5 py-3 text-[14px] font-bold text-white outline-none text-right placeholder:text-slate-600"
+                  placeholder="اكتب رسالتك الطبية هنا..."
                   dir="rtl"
                 />
                 <button 
                   type="submit" 
                   disabled={!messageInput.trim()} 
-                  className="bg-[#00a884] text-white p-3 rounded-full hover:bg-[#008f6f] shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                  className="bg-blue-600 text-white p-4 rounded-2xl hover:bg-blue-500 transition-all active:scale-90 disabled:opacity-20 shadow-lg shadow-blue-900/40"
                 >
                   <Send size={20} />
                 </button>
@@ -276,12 +249,12 @@ export default function ProfessionalDoctorChat() {
             </footer>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-400 z-10 text-center px-10">
-             <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center mb-6 shadow-sm border border-emerald-100">
-               <MessageSquare size={48} className="text-emerald-200" />
-             </div>
-             <h3 className="text-2xl font-black text-gray-700">الدردشة الطبية</h3>
-             <p className="text-sm mt-3 bg-white/50 px-4 py-1 rounded-full">اختر مريضاً من القائمة الجانبية لمتابعة حالته الصحية</p>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-700 z-10 text-center px-10">
+              <div className="w-28 h-28 bg-slate-900 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-800 shadow-2xl">
+                <MessageSquare size={48} className="text-slate-800" fill="currentColor" />
+              </div>
+              <h3 className="text-2xl font-black text-slate-300 tracking-tighter">Secure Communication</h3>
+              <p className="text-[10px] font-black text-slate-600 mt-3 uppercase tracking-[0.3em]">Select patient record to view history</p>
           </div>
         )}
       </div>

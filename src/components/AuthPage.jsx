@@ -48,6 +48,7 @@ export default function AuthPage() {
       const res = await axios.post(`${API_BASE_URL}/api/Auth/login`, { email, password });
       localStorage.setItem('token', res.data.token);
       localStorage.setItem('role', res.data.role);
+      localStorage.setItem('id', res.data.id);
       navigate(res.data.role === 'Admin' ? '/admin/dashboard' : `/${res.data.role.toLowerCase()}/dashboard`);
     } catch (err) {
       setError(err.response?.data?.message || "خطأ في البريد أو كلمة المرور");

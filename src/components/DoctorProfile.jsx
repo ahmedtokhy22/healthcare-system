@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { User, Phone, MapPin, FileText, Upload, Save, Briefcase, ChevronDown, Loader2 } from "lucide-react";
+import { User, Phone, MapPin, Upload, Save, Briefcase, Loader2 } from "lucide-react";
 import axios from 'axios';
 
 export default function DoctorProfile() {
   const [profileData, setProfileData] = useState({
     name: "", 
     title: "", 
-    specialty: "", 
+    // تم حذف specialty من هنا
     bio: "", 
     phoneNumber: "", 
     address: "", 
@@ -14,13 +14,13 @@ export default function DoctorProfile() {
     addressUrl: "" 
   });
 
-  const specialties = ["Oncology", "Cardiology", "Dermatology", "Neurology", "Pediatrics", "Internal Medicine"];
+  // تم حذف مصفوفة specialties لأنها لم تعد مطلوبة
+
   const [imagePreview, setImagePreview] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
-  // ✅ نضع الـ Base URL الخاص بك لضمان المسارات الصحيحة
   const API_BASE = 'https://healthcare52.runasp.net';
   const token = localStorage.getItem('token');
   const headers = { 'Authorization': `Bearer ${token}` };
@@ -34,11 +34,10 @@ export default function DoctorProfile() {
       const response = await axios.get(`${API_BASE}/api/Doctors/profile`, { headers });
       const data = response.data;
       
-      // ✅ مطابقة المفاتيح مع الـ JSON اللي انت بعته
       setProfileData({
         name: data.name || "",
         title: data.title || "",
-        specialty: data.specialty || "Oncology", // افتراضي Oncology بناءً على تخصصك
+        // لا نقوم بتخزين التخصص هنا
         bio: data.bio || "",
         phoneNumber: data.phoneNumber || "",
         address: data.address || "",
@@ -46,7 +45,6 @@ export default function DoctorProfile() {
         addressUrl: data.addressUrl || ""
       });
       
-      // ✅ استخدام المسار الصحيح للصورة من الـ JSON
       if (data.profilePictureUrl) {
         setImagePreview(data.profilePictureUrl);
       }
@@ -66,7 +64,6 @@ export default function DoctorProfile() {
     setLoading(true);
     const formData = new FormData();
     
-    // إضافة البيانات
     Object.keys(profileData).forEach(key => {
       formData.append(key, profileData[key]);
     });
@@ -137,24 +134,13 @@ export default function DoctorProfile() {
                 <CustomInput name="name" label="الاسم الكامل" value={profileData.name} onChange={handleChange} icon={<User size={18}/>} />
                 <CustomInput name="title" label="المسمى الوظيفي" value={profileData.title} onChange={handleChange} icon={<Briefcase size={18}/>} placeholder="مثلاً: رئيس قسم الأورام" />
                 
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] mr-1">التخصص الطبي</label>
-                  <div className="relative">
-                    <div className="absolute right-5 top-1/2 -translate-y-1/2 text-cyan-500"><FileText size={18}/></div>
-                    <select name="specialty" value={profileData.specialty} onChange={handleChange}
-                      className="w-full pr-14 pl-10 py-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none appearance-none focus:ring-4 focus:ring-cyan-50/50 transition-all cursor-pointer text-slate-700">
-                      <option value="">اختر التخصص</option>
-                      {specialties.map(spec => <option key={spec} value={spec}>{spec}</option>)}
-                    </select>
-                    <ChevronDown className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 pointer-events-none" size={18}/>
-                  </div>
-                </div>
+                {/* تم حذف قسم التخصص (Specialty) من هنا بالكامل */}
 
                 <CustomInput name="phoneNumber" label="رقم التواصل" value={profileData.phoneNumber} onChange={handleChange} icon={<Phone size={18}/>} />
+                <CustomInput name="city" label="المدينة" value={profileData.city} onChange={handleChange} icon={<MapPin size={18}/>} />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                 <CustomInput name="city" label="المدينة" value={profileData.city} onChange={handleChange} icon={<MapPin size={18}/>} />
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-8">
                  <CustomInput name="address" label="عنوان العيادة" value={profileData.address} onChange={handleChange} icon={<MapPin size={18}/>} />
               </div>
 
