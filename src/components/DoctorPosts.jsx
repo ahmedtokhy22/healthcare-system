@@ -148,17 +148,27 @@ export default function DoctorPosts() {
             posts.map((post) => (
               <article key={post.id} className="bg-white rounded-[3.5rem] p-8 md:p-12 shadow-sm border border-slate-50 hover:shadow-2xl transition-all duration-500 group relative overflow-hidden">
                 <div className="flex justify-between items-start mb-8">
-                  <div className="flex items-center gap-5">
-                    <div className="w-14 h-14 bg-cyan-50 rounded-2xl flex items-center justify-center text-cyan-500 overflow-hidden border border-cyan-100 shadow-inner">
-                      {post.doctorProfilePicture ? <img src={post.doctorProfilePicture} alt="dr" className="w-full h-full object-cover" /> : <User size={28} />}
-                    </div>
-                    <div>
-                      <h4 className="font-black text-slate-800 text-lg">{post.doctorName || "دكتور متخصص"}</h4>
-                      <span className="text-[9px] font-black text-cyan-600 bg-cyan-50 px-3 py-1 rounded-full uppercase tracking-wider">{post.specialtyName}</span>
-                    </div>
+                  
+                  {/* SPECIALTY & STATUS IN ONE LINE */}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-[9px] font-black text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full uppercase tracking-wider border border-cyan-100">
+                      {post.specialtyName}
+                    </span>
+
+                    {post.isPublished ? (
+                      <span className="flex items-center gap-1.5 text-[9px] font-black text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full uppercase tracking-wider border border-emerald-100">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                        Published
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1.5 text-[9px] font-black text-orange-500 bg-orange-50 px-3 py-1.5 rounded-full uppercase tracking-wider border border-orange-100">
+                        <span className="w-1.5 h-1.5 bg-orange-400 rounded-full" />
+                        Pending
+                      </span>
+                    )}
                   </div>
 
-                  {/* ACTION BUTTONS (EDIT & DELETE) */}
+                  {/* ACTION BUTTONS */}
                   <div className="flex gap-2">
                     <button 
                       onClick={() => openEditModal(post)} 
@@ -187,10 +197,10 @@ export default function DoctorPosts() {
             ))
           ) : (
             <div className="text-center py-32 bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
-               <Loader2 className={`mx-auto text-slate-200 mb-4 ${loading ? 'animate-spin' : ''}`} size={48} />
-               <p className="text-slate-400 font-black uppercase text-xs tracking-widest">
-                 {loading ? "جاري تحميل المقالات..." : "لا يوجد منشورات حالياً"}
-               </p>
+              <Loader2 className={`mx-auto text-slate-200 mb-4 ${loading ? 'animate-spin' : ''}`} size={48} />
+              <p className="text-slate-400 font-black uppercase text-xs tracking-widest">
+                {loading ? "جاري تحميل المقالات..." : "لا يوجد منشورات حالياً"}
+              </p>
             </div>
           )}
         </div>

@@ -20,17 +20,22 @@ export default function PendingRequests({ type }) {
   };
 
   const fetchRequests = async () => {
-    try {
-      setLoading(true);
-      const actionPath = type === 'Doctor' ? 'doctor-appointments' : (type === 'Lab' ? 'lab-appointments' : 'nurse-appointments');
-      const res = await axios.get(`${API_BASE_URL}/api/${actionPath}/me?status=Pending`, { headers });
-      setRequests(res.data.items || res.data || []);
-    } catch (err) {
-      console.error("Fetch Error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        setLoading(true);
+        const actionPath = type === 'Doctor' ? 'doctor-appointments' : (type === 'Lab' ? 'lab-appointments' : 'nurse-appointments');
+        let queryParams = "status=Pending";
+        if (type === 'Doctor' || type === 'Lab') {
+          queryParams += "&appointmentType=HomeVisit";
+        }
+        const res = await axios.get(`${API_BASE_URL}/api/${actionPath}/me?${queryParams}`, { headers });
+        
+        setRequests(res.data.items || res.data || []);
+      } catch (err) {
+        console.error("Fetch Error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
   useEffect(() => { fetchRequests(); }, [type]);
 

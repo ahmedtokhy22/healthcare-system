@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
   Video, Home, Calendar, Clock, Loader2, Search,
-  Trash2, ChevronDown, Stethoscope, Plus, Info, X, Filter
+  Trash2, ChevronDown, Stethoscope, Plus, Info, X, Filter, Edit2, Check
 } from "lucide-react";
 
 const API_BASE = "https://healthcare52.runasp.net/api";
@@ -17,7 +17,8 @@ export default function AppointmentManagement() {
   const [statusFilter, setStatusFilter] = useState("All"); 
   const [appointments, setAppointments] = useState([]);
   const [schedule, setSchedule] = useState({
-    clinicFee: 0, homeVisitFee: 0, onlineFee: 0, slots: []
+    clinicFee: 0, homeVisitFee: 0, onlineFee: 0,
+    homeVisit: false, onlineConsultation: false, slots: []
   });
 
   const [loading, setLoading] = useState(true);
@@ -26,9 +27,15 @@ export default function AppointmentManagement() {
   const [hasMore, setHasMore] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [settingsForm, setSettingsForm] = useState({
+    clinicFee: 0, homeFee: 0, onlineFee: 0,
+    allowHomeVisit: false, allowOnlineConsultation: false
+  });
 
   const [newSlot, setNewSlot] = useState({
-    startDate: "", endDate: "", startTime: "", endTime: "", consultationDurationInminutes: 20
+    startDate: "", endDate: "", startTime: "", endTime: "",
+    consultationDurationInminutes: 20
   });
 
   // =========================
@@ -37,10 +44,10 @@ export default function AppointmentManagement() {
   const fetchAppointments = async (page, isLoadMore = false) => {
     try {
       isLoadMore ? setLoadingMore(true) : setLoading(true);
-      const res = await axios.get(`${API_BASE}/doctor-appointments/me?pageNumber=${page}&pageSize=6`, { headers });
+      const res = await axios.get(`${API_BASE}/doctor-appointments/me?pageNumber=${page}&pageSize=20`, { headers });
       const newItems = res.data.items || [];
       setAppointments(prev => isLoadMore ? [...prev, ...newItems] : newItems);
-      setHasMore(newItems.length === 6);
+      setHasMore(newItems.length === 20);
     } catch (err) { console.error(err); } 
     finally { setLoading(false); setLoadingMore(false); }
   };
@@ -49,6 +56,13 @@ export default function AppointmentManagement() {
     try {
       const res = await axios.get(`${API_BASE}/Doctors/me/schedule`, { headers });
       setSchedule(res.data);
+      setSettingsForm({
+        clinicFee: res.data.clinicFee || 0,
+        homeFee: res.data.homeVisitFee || 0,
+        onlineFee: res.data.onlineFee || 0,
+        allowHomeVisit: res.data.homeVisit || false,
+        allowOnlineConsultation: res.data.onlineConsultation || false,
+      });
     } catch (err) { console.error(err); }
   };
 
@@ -63,46 +77,78 @@ export default function AppointmentManagement() {
     fetchAppointments(nextPage, true);
   };
 
+  // =========================
+  // UPDATE CONSULTATION SETTINGS
+  // =========================
+  const handleUpdateSettings = async (e) => {
+    e.preventDefault();
+    setIsUpdatingSettings(true);
+    try {
+      await axios.put(`${API_BASE}/Doctors/me/consultation-settings`, {
+        clinicFee: Number(settingsForm.clinicFee),
+        homeFee: Number(settingsForm.homeFee),
+        onlineFee: Number(settingsForm.onlineFee),
+        allowHomeVisit: settingsForm.allowHomeVisit,
+        allowOnlineConsultation: settingsForm.allowOnlineConsultation,
+      }, { headers });
+      await fetchSchedule();
+      alert("Settings updated successfully");
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to update settings");
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  // =========================
+  // GENERATE SLOTS
+  // =========================
   const handleAddSlot = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       const requestData = {
-        ...newSlot,
-        endDate: newSlot.endDate || newSlot.startDate,
+        startDate: newSlot.startDate,
+        endDate: newSlot.endDate || null,
         startTime: `${newSlot.startTime}:00`,
-        endTime: `${newSlot.endTime}:00`,
+        endTime: newSlot.endTime ? `${newSlot.endTime}:00` : null,
         consultationDurationInminutes: Number(newSlot.consultationDurationInminutes)
       };
       await axios.post(`${API_BASE}/doctors/me/slots`, requestData, { headers });
       alert("Generated Successfully");
       setNewSlot({ startDate: "", endDate: "", startTime: "", endTime: "", consultationDurationInminutes: 20 });
       fetchSchedule();
-    } catch (err) { alert(err.response?.data?.message || "Failed"); } 
-    finally { setIsSubmitting(false); }
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
+  // =========================
+  // DELETE SINGLE SLOT
+  // =========================
   const handleDeleteSlot = async (id) => {
-    if(!window.confirm("حذف هذا الموعد؟")) return;
+    if (!window.confirm("حذف هذا الموعد؟")) return;
     try {
       await axios.delete(`${API_BASE}/doctors/me/slots/${id}`, { headers });
       fetchSchedule();
     } catch (err) { alert("Failed to delete slot"); }
   };
 
-  const handleDeleteDay = async (slots) => {
-    if(!window.confirm("حذف جميع مواعيد هذا اليوم؟")) return;
+  // =========================
+  // DELETE ALL SLOTS OF A DAY
+  // =========================
+  const handleDeleteDay = async (date) => {
+    if (!window.confirm("حذف جميع مواعيد هذا اليوم؟")) return;
     try {
-      await Promise.all(slots.map(s => axios.delete(`${API_BASE}/doctors/me/slots/${s.id}`, { headers })));
+      await axios.delete(`${API_BASE}/doctors/me/slots`, {
+        headers,
+        params: { date }
+      });
       fetchSchedule();
     } catch (err) { alert("Failed to delete day"); }
   };
-
-  const groupedSlots = schedule.slots?.reduce((acc, slot) => {
-    if (!acc[slot.date]) acc[slot.date] = [];
-    acc[slot.date].push(slot);
-    return acc;
-  }, {});
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-20 px-4 font-sans text-slate-900">
@@ -112,7 +158,7 @@ export default function AppointmentManagement() {
         <div className="py-8 flex justify-between items-center">
           <h1 className="text-2xl font-black text-blue-600 tracking-tighter italic">Flow.</h1>
           <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-sm">
-             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           </div>
         </div>
 
@@ -130,9 +176,8 @@ export default function AppointmentManagement() {
 
         {activeTab === "appointments" ? (
           <div className="space-y-6">
-            {/* SEARCH & LIST BOX FILTER SECTION */}
+            {/* SEARCH & FILTER */}
             <div className="flex flex-col md:flex-row gap-4 items-center">
-              {/* Search Input */}
               <div className="relative group flex-1 w-full">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
                 <input
@@ -143,8 +188,6 @@ export default function AppointmentManagement() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-
-              {/* Status List Box (Dropdown) */}
               <div className="relative w-full md:w-64">
                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                   <Filter size={18} />
@@ -157,9 +200,9 @@ export default function AppointmentManagement() {
                   <option value="All">All Statuses</option>
                   <option value="Pending">Pending</option>
                   <option value="Confirmed">Confirmed</option>
-                  <option value="Complete">Complete</option>
+                  <option value="Completed">Completed</option>
                   <option value="Cancelled">Cancelled</option>
-                  <option value="Rejected">Rejected</option>
+                  <option value="Decliend">Decliend</option>
                 </select>
                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
@@ -204,7 +247,6 @@ export default function AppointmentManagement() {
                     </div>
                   ))}
                 
-                {/* EMPTY STATE MESSAGE */}
                 {appointments.filter(appt => {
                   const matchesSearch = appt.patientName?.toLowerCase().includes(searchTerm.toLowerCase());
                   const matchesStatus = statusFilter === "All" || appt.status === statusFilter;
@@ -225,30 +267,122 @@ export default function AppointmentManagement() {
               </div>
             )}
           </div>
+
         ) : (
           <div className="space-y-10 animate-in fade-in duration-500">
-            {/* FEES OVERVIEW */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <FeeCard icon={<Stethoscope size={20}/>} label="Clinic" price={schedule.clinicFee} color="blue" />
-              <FeeCard icon={<Home size={20}/>} label="Home" price={schedule.homeVisitFee} color="indigo" />
-              <FeeCard icon={<Video size={20}/>} label="Online" price={schedule.onlineFee} color="purple" />
+
+            {/* ── CONSULTATION SETTINGS FORM ── */}
+            <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white">
+                  <Edit2 size={18} />
+                </div>
+                <h2 className="text-lg font-black tracking-tight">Consultation Settings</h2>
+              </div>
+
+              <form onSubmit={handleUpdateSettings} className="space-y-6">
+                {/* FEES ROW */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="flex flex-col gap-2.5">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">Clinic Fee (EGP)</label>
+                    <div className="relative">
+                      <Stethoscope size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-400" />
+                      <input
+                        type="number" min="0"
+                        value={settingsForm.clinicFee}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, clinicFee: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 pl-10 pr-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">Home Visit Fee (EGP)</label>
+                    <div className="relative">
+                      <Home size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400" />
+                      <input
+                        type="number" min="0"
+                        value={settingsForm.homeFee}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, homeFee: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 pl-10 pr-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">Online Fee (EGP)</label>
+                    <div className="relative">
+                      <Video size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400" />
+                      <input
+                        type="number" min="0"
+                        value={settingsForm.onlineFee}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, onlineFee: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 pl-10 pr-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* TOGGLES ROW */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <ToggleCard
+                    label="Allow Home Visits"
+                    icon={<Home size={18} />}
+                    color="indigo"
+                    checked={settingsForm.allowHomeVisit}
+                    onChange={(val) => setSettingsForm({ ...settingsForm, allowHomeVisit: val })}
+                  />
+                  <ToggleCard
+                    label="Allow Online Consultations"
+                    icon={<Video size={18} />}
+                    color="purple"
+                    checked={settingsForm.allowOnlineConsultation}
+                    onChange={(val) => setSettingsForm({ ...settingsForm, allowOnlineConsultation: val })}
+                  />
+                </div>
+
+                {/* SAVE BUTTON */}
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isUpdatingSettings}
+                    className="bg-slate-900 text-white px-10 py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-[0.15em] hover:bg-blue-600 transition-all shadow-lg disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isUpdatingSettings ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+                    Save Settings
+                  </button>
+                </div>
+              </form>
             </div>
 
-            {/* GENERATE BOX */}
+            {/* ── GENERATE SLOTS BOX ── */}
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
                   <Plus size={20} />
                 </div>
-                <h2 className="text-lg font-black tracking-tight">Generate New Slots</h2>
+                <div>
+                  <h2 className="text-lg font-black tracking-tight">Generate New Slots</h2>
+                  <p className="text-[11px] text-slate-400 font-bold mt-0.5">End date and end time are optional</p>
+                </div>
               </div>
               <form onSubmit={handleAddSlot} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <InputGroup label="Start Date" type="date" value={newSlot.startDate} onChange={(val) => setNewSlot({...newSlot, startDate: val})} />
-                <InputGroup label="End Date" type="date" value={newSlot.endDate} onChange={(val) => setNewSlot({...newSlot, endDate: val})} />
-                <InputGroup label="Start Time" type="time" value={newSlot.startTime} onChange={(val) => setNewSlot({...newSlot, startTime: val})} />
-                <InputGroup label="End Time" type="time" value={newSlot.endTime} onChange={(val) => setNewSlot({...newSlot, endTime: val})} />
+                <InputGroup label="Start Date *" type="date" value={newSlot.startDate} required onChange={(val) => setNewSlot({ ...newSlot, startDate: val })} />
+                <InputGroup label="End Date" type="date" value={newSlot.endDate} onChange={(val) => setNewSlot({ ...newSlot, endDate: val })} />
+                <InputGroup label="Start Time *" type="time" value={newSlot.startTime} required onChange={(val) => setNewSlot({ ...newSlot, startTime: val })} />
+                <InputGroup label="End Time" type="time" value={newSlot.endTime} onChange={(val) => setNewSlot({ ...newSlot, endTime: val })} />
                 <div className="lg:col-span-3">
-                  <InputGroup label="Duration (Minutes)" type="number" value={newSlot.consultationDurationInminutes} onChange={(val) => setNewSlot({...newSlot, consultationDurationInminutes: val})} />
+                  <div className="flex flex-col gap-2.5">
+                    <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">Duration (Minutes) *</label>
+                    <select
+                      value={newSlot.consultationDurationInminutes}
+                      onChange={(e) => setNewSlot({ ...newSlot, consultationDurationInminutes: Number(e.target.value) })}
+                      required
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 px-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all appearance-none cursor-pointer"
+                    >
+                      {[5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60].map((min) => (
+                        <option key={min} value={min}>{min} minutes</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div className="flex items-end">
                   <button type="submit" disabled={isSubmitting} className="w-full bg-blue-600 text-white h-[54px] rounded-2xl font-black text-[11px] uppercase tracking-[0.15em] hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 disabled:opacity-50">
@@ -258,47 +392,64 @@ export default function AppointmentManagement() {
               </form>
             </div>
 
-            {/* SLOTS GRID */}
+            {/* ── SLOTS GRID ── */}
             <div className="space-y-8">
-              {groupedSlots && Object.entries(groupedSlots).length > 0 ? (
-                Object.entries(groupedSlots).map(([date, slots]) => (
+              {schedule.slots && schedule.slots.length > 0 ? (
+                schedule.slots.map(({ date, day, slots }) => (
                   <div key={date} className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm group hover:border-blue-100 transition-all">
                     <div className="flex items-center justify-between mb-8">
                       <div>
                         <h3 className="text-2xl font-black text-slate-800 tracking-tighter capitalize leading-none mb-2">
-                          {new Date(date).toLocaleDateString("en-US", { weekday: "long" })}
+                          {day}
                         </h3>
                         <p className="text-sm font-bold text-slate-400 tracking-widest uppercase">{date}</p>
                       </div>
-                      <button onClick={() => handleDeleteDay(slots)} className="w-12 h-12 rounded-2xl border border-slate-100 text-slate-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all flex items-center justify-center">
+                      <button
+                        onClick={() => handleDeleteDay(date)}
+                        className="w-12 h-12 rounded-2xl border border-slate-100 text-slate-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all flex items-center justify-center"
+                        title="Delete all slots for this day"
+                      >
                         <Trash2 size={20} />
                       </button>
                     </div>
 
                     <div className="flex flex-wrap gap-4 items-center">
                       {slots.map((slot) => (
-                        <div key={slot.id} className="bg-[#E8F8FB] border border-[#D1F1F7] rounded-2xl pl-6 pr-3 py-3.5 flex items-center gap-3 transition-all hover:border-[#b4e6ef]">
-                          <span className="font-bold text-[#1CB5BD] text-[14px] whitespace-nowrap">
-                            {slot.startTime?.slice(0, 5)} ({slot.consultationDurationInminutes}min)
+                        <div
+                          key={slot.id}
+                          className={`border rounded-2xl pl-6 pr-3 py-3.5 flex items-center gap-3 transition-all ${
+                            slot.isBooked
+                              ? "bg-slate-50 border-slate-200"
+                              : "bg-[#E8F8FB] border-[#D1F1F7] hover:border-[#b4e6ef]"
+                          }`}
+                        >
+                          <span className={`font-bold text-[14px] whitespace-nowrap ${slot.isBooked ? "text-slate-400" : "text-[#1CB5BD]"}`}>
+                            {slot.startTime?.slice(0, 5)}
+                            {slot.isBooked && (
+                              <span className="ml-2 text-[9px] font-black uppercase tracking-wider bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full">Booked</span>
+                            )}
                           </span>
-                          <button onClick={() => handleDeleteSlot(slot.id)} className="w-6 h-6 rounded-full flex items-center justify-center text-[#1CB5BD] hover:bg-white hover:text-red-500 transition-all">
-                            <X size={14} strokeWidth={3} />
-                          </button>
+                          {!slot.isBooked && (
+                            <button
+                              onClick={() => handleDeleteSlot(slot.id)}
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-[#1CB5BD] hover:bg-white hover:text-red-500 transition-all"
+                            >
+                              <X size={14} strokeWidth={3} />
+                            </button>
+                          )}
                         </div>
                       ))}
-                      <div className="w-12 h-12 rounded-2xl border-2 border-dashed border-slate-100 flex items-center justify-center text-slate-200 cursor-pointer hover:border-blue-200 hover:text-blue-400 transition-all">
-                         <Plus size={24} />
-                      </div>
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="text-center py-20 bg-white border border-dashed border-slate-200 rounded-[3rem]">
-                   <Info className="mx-auto text-slate-200 mb-4" size={48} />
-                   <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No slots available for this week</p>
+                  <Info className="mx-auto text-slate-200 mb-4" size={48} />
+                  <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No slots available</p>
                 </div>
               )}
             </div>
+
           </div>
         )}
       </div>
@@ -306,7 +457,33 @@ export default function AppointmentManagement() {
   );
 }
 
-// UI HELPERS
+// ── UI HELPERS ──
+
+function ToggleCard({ label, icon, color, checked, onChange }) {
+  const colors = {
+    indigo: { active: "bg-indigo-600 border-indigo-600", icon: "text-indigo-600 bg-indigo-50" },
+    purple: { active: "bg-purple-600 border-purple-600", icon: "text-purple-600 bg-purple-50" },
+  };
+  return (
+    <div
+      onClick={() => onChange(!checked)}
+      className={`flex-1 flex items-center justify-between p-5 rounded-2xl border-2 cursor-pointer transition-all select-none ${
+        checked ? `${colors[color].active} text-white` : "border-slate-100 bg-slate-50 text-slate-600"
+      }`}
+    >
+      <div className="flex items-center gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${checked ? "bg-white/20" : colors[color].icon}`}>
+          {icon}
+        </div>
+        <span className="font-black text-[12px] uppercase tracking-wider">{label}</span>
+      </div>
+      <div className={`w-12 h-6 rounded-full transition-all relative ${checked ? "bg-white/30" : "bg-slate-200"}`}>
+        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${checked ? "left-6" : "left-0.5"}`} />
+      </div>
+    </div>
+  );
+}
+
 function FeeCard({ icon, label, price, color }) {
   const colors = {
     blue: "bg-blue-50 text-blue-600 border-blue-100",
@@ -324,12 +501,17 @@ function FeeCard({ icon, label, price, color }) {
   );
 }
 
-function InputGroup({ label, type, value, onChange }) {
+function InputGroup({ label, type, value, onChange, required = false }) {
   return (
     <div className="flex flex-col gap-2.5">
       <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} required
-        className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 px-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all" />
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        className="w-full bg-slate-50 border border-slate-100 rounded-xl py-3.5 px-4 text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-blue-400 focus:ring-4 ring-blue-500/5 transition-all"
+      />
     </div>
   );
 }
