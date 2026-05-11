@@ -41,7 +41,7 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
     Nurse: [
       { name: 'Dashboard', path: '/nurse/dashboard', icon: <LayoutDashboard size={18}/> },
       { name: 'Requests', path: '/nurse/pending-requests', icon: <Clock size={18}/> },
-      { name: 'Nurse Station', path: '/nurse/manage-appointments', icon: <Calendar size={18}/> }
+      { name: 'Nurse Appointments', path: '/nurse/manage-appointments', icon: <Calendar size={18}/> }
     ]
   };
 

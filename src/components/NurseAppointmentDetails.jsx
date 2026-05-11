@@ -2,9 +2,9 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { 
-  Video, FileText, History, Activity, User, 
+  FileText, History, Activity, User, 
   ChevronLeft, Loader2, Clipboard, ShieldAlert,
-  Calendar, Clock, HeartPulse
+  Calendar, Clock, HeartPulse, MapPin, Banknote, AlertCircle, Timer
 } from "lucide-react";
 
 export default function NurseAppointmentDetails() {
@@ -22,16 +22,16 @@ export default function NurseAppointmentDetails() {
     const fetchNurseData = async () => {
       try {
         setLoading(true);
-        // جلب تفاصيل موعد الممرض
         const appRes = await axios.get(`${API_BASE}/nurse-appointments/${id}`, { headers });
         const appData = appRes.data;
         setAppointment(appData);
 
-        // جلب السجل الطبي للمريض (للقراءة فقط)
-        const medicalRes = await axios.get(`${API_BASE}/Patients/${appData.patientId}/medical-record`, { headers });
-        setMedicalRecord(medicalRes.data);
+        if (appData?.patientId) {
+          const medicalRes = await axios.get(`${API_BASE}/Patients/${appData.patientId}/medical-record`, { headers });
+          setMedicalRecord(medicalRes.data);
+        }
       } catch (err) {
-        console.error("Error fetching data", err);
+        console.error("Error fetching patient data:", err);
       } finally {
         setLoading(false);
       }
@@ -39,20 +39,18 @@ export default function NurseAppointmentDetails() {
     fetchNurseData();
   }, [id]);
 
-  const isMeetingActive = () => {
-    if (!appointment?.date || !appointment?.startTime || !appointment?.endTime) return false;
-    const now = new Date();
-    const start = new Date(`${appointment.date}T${appointment.startTime}`);
-    const end = new Date(`${appointment.date}T${appointment.endTime}`);
-    return now >= start && now <= end;
-  };
-
-  const handleJoinMeeting = async () => {
-    try {
-      const res = await axios.post(`${API_BASE}/nurse-appointments/${id}/prepare-meetings`, {}, { headers });
-      if (res.data.meetingUrl) window.open(res.data.meetingUrl, "_blank");
-    } catch (err) {
-      alert("❌ Unable to start meeting. Check connection or appointment time.");
+  const handleNoShow = async () => {
+    if (window.confirm("Record patient no-show? This will close the appointment.")) {
+      try {
+        await axios.patch(`${API_BASE}/Appointments/${id}/final-status`, {
+          appointmentType: "nurse",
+          status: "NoShow"
+        }, { headers });
+        alert("✅ Recorded successfully");
+        setAppointment(prev => ({ ...prev, status: "NoShow" }));
+      } catch (err) {
+        alert("❌ Update failed: " + (err.response?.data?.message || "Server Error"));
+      }
     }
   };
 
@@ -67,7 +65,6 @@ export default function NurseAppointmentDetails() {
     <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 font-sans text-left" dir="ltr">
       <div className="max-w-7xl mx-auto space-y-6">
         
-        {/* Back Button & Header */}
         <div className="flex items-center justify-between mb-8">
           <button 
             onClick={() => navigate(-1)}
@@ -77,16 +74,34 @@ export default function NurseAppointmentDetails() {
           </button>
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-100">
             <ShieldAlert size={16} />
-            <span className="text-[10px] font-black uppercase">Read-Only Access</span>
+            <span className="text-[10px] font-black uppercase tracking-tighter">Nurse Clinical Review Mode</span>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Main Content (Left) - Medical Record */}
           <div className="lg:col-span-8 space-y-8">
-            
-            {/* Medical History Section */}
+            <section className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm p-8">
+               <h4 className="flex items-center gap-2 font-black text-sm mb-6 text-slate-800 uppercase tracking-tight">
+                  <Clipboard size={18} className="text-blue-600" /> Appointment Request Details
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase">Patient Notes</span>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-xs font-bold text-slate-700 border border-slate-100 min-h-[50px]">
+                      {appointment?.notes || "No notes provided"}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase">Visit Address</span>
+                    <div className="bg-slate-50 p-4 rounded-2xl text-xs font-bold text-slate-700 border border-slate-100 flex items-start gap-2">
+                      <MapPin size={14} className="text-red-500 shrink-0 mt-0.5" />
+                      {appointment?.address || "No address found"}
+                    </div>
+                  </div>
+                </div>
+            </section>
+
             <section className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
               <div className="bg-slate-900 px-8 py-5 text-white flex items-center gap-3">
                 <History size={20} className="text-blue-400" />
@@ -110,7 +125,9 @@ export default function NurseAppointmentDetails() {
                       </div>
                     ))
                   ) : (
-                    <p className="text-xs text-slate-400 italic font-bold">No past diagnoses recorded.</p>
+                    <div className="bg-slate-50 rounded-2xl p-6 text-center text-slate-400 font-bold italic text-xs">
+                      No records found
+                    </div>
                   )}
                 </div>
 
@@ -127,33 +144,38 @@ export default function NurseAppointmentDetails() {
                         <th className="p-4 text-center">Report</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-50 font-bold">
-                      {medicalRecord?.labResults?.map((lab, i) => lab.results.map((res, j) => (
-                        <tr key={`${i}-${j}`} className="hover:bg-blue-50/30 transition-colors">
-                          <td className="p-4 text-slate-400">{lab.appointmentDate}</td>
-                          <td className="p-4 text-slate-800">{res.testName}</td>
-                          <td className="p-4 text-red-600 font-black">{res.value}</td>
-                          <td className="p-4 text-center">
-                            <button
-                              onClick={() => window.open(res.resultFileUrl, "_blank")}
-                              className="text-blue-600 hover:underline flex items-center gap-1 mx-auto"
-                            >
-                              View PDF
-                            </button>
-                          </td>
-                        </tr>
-                      )))}
+                    <tbody className="divide-y divide-slate-50 font-bold text-slate-700">
+                      {medicalRecord?.labResults?.map((lab, i) => 
+                        lab.results?.map((res, j) => (
+                          <tr key={`${i}-${j}`} className="hover:bg-blue-50/30 transition-colors">
+                            <td className="p-4 text-slate-400">{lab.appointmentDate}</td>
+                            <td className="p-4">{res.testName}</td>
+                            <td className="p-4 text-red-600 font-black">{res.value}</td>
+                            <td className="p-4 text-center">
+                              <button
+                                onClick={() => res.resultFileUrl && window.open(res.resultFileUrl, "_blank")}
+                                className="text-blue-600 hover:underline flex items-center gap-1 mx-auto disabled:opacity-30"
+                                disabled={!res.resultFileUrl}
+                              >
+                                View PDF
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
+                  {(!medicalRecord?.labResults || medicalRecord.labResults.length === 0) && (
+                    <div className="p-8 text-center text-slate-400 font-bold text-xs italic">
+                      No lab data available
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
           </div>
 
-          {/* Sidebar (Right) - Appointment & Profile */}
           <div className="lg:col-span-4 space-y-6">
-            
-            {/* Patient Card */}
             <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-xl p-8 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6 opacity-5">
                 <HeartPulse size={80} />
@@ -161,60 +183,75 @@ export default function NurseAppointmentDetails() {
               
               <div className="flex justify-between items-center mb-8">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <User size={14}/> Profile
+                  <User size={14}/> Patient Information
                 </span>
-                <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black">
-                  {appointment?.status?.toUpperCase()}
+                <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${
+                  appointment?.status === 'NoShow' ? 'bg-red-100 text-red-600' : 
+                  appointment?.status === 'Pending' ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-600'
+                }`}>
+                  {appointment?.status || 'Unknown'}
                 </span>
               </div>
 
               <div className="text-center pb-6 border-b border-slate-50 mb-6">
-                <h3 className="text-2xl font-black text-slate-900 tracking-tighter mb-1">{appointment?.patientName}</h3>
-                <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">{appointment?.serviceType}</p>
+                <p className="text-[10px] text-blue-500 font-black uppercase tracking-widest">{appointment?.serviceType || "QuickVisit"}</p>
               </div>
 
               <div className="space-y-4 mb-8">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase">Appointment Date</span>
-                  <span className="text-xs font-black text-slate-700 flex items-center gap-2"><Calendar size={14}/> {appointment?.date}</span>
+                  <span className="text-[10px] font-black text-slate-300 uppercase">Date</span>
+                  <span className="text-xs font-black text-slate-700 flex items-center gap-2">
+                    <Calendar size={14}/> {appointment?.date || "No date"}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-300 uppercase">Visit Time</span>
-                  <span className="text-xs font-black text-slate-700 flex items-center gap-2"><Clock size={14}/> {appointment?.appointmentStartTime}</span>
+                  <span className="text-[10px] font-black text-slate-300 uppercase">Start Time</span>
+                  <span className="text-xs font-black text-slate-700 flex items-center gap-2">
+                    <Clock size={14}/> {appointment?.appointmentStartTime?.slice(0, 5) || "00:00"}
+                  </span>
+                </div>
+                {appointment?.serviceType === "HourlyStay" && appointment?.hours && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black text-slate-300 uppercase">Duration</span>
+                    <span className="text-xs font-black text-slate-700 flex items-center gap-2">
+                      <Timer size={14}/> {appointment?.hours} Hours
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2 border-t border-slate-50">
+                  <span className="text-[10px] font-black text-slate-300 uppercase">Total Fee</span>
+                  <span className="text-sm font-black text-emerald-600 flex items-center gap-1">
+                    <Banknote size={16}/> {appointment?.totalFee || 0} EGP
+                  </span>
                 </div>
               </div>
 
-              {appointment?.appointmentType === "Online" && (
+              {/* No-Show Button — Only active/visible if status is Completed */}
+              {appointment?.status === "Completed" && (
                 <button 
-                  onClick={isMeetingActive() ? handleJoinMeeting : undefined}
-                  disabled={!isMeetingActive()}
-                  className={`w-full py-4 rounded-2xl flex items-center justify-center gap-3 font-black text-[11px] uppercase transition-all ${
-                    isMeetingActive()
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95"
-                      : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                  }`}
+                  onClick={handleNoShow}
+                  className="w-full border-2 border-red-50 text-red-500 py-4 rounded-2xl flex items-center justify-center gap-2 font-black text-[10px] uppercase hover:bg-red-100 hover:text-red-600 active:scale-95 transition-all shadow-sm"
                 >
-                  <Video size={18} />
-                  {isMeetingActive() ? "Join Meeting" : "Meeting Inactive"}
+                  <AlertCircle size={18} /> Mark as No-Show
                 </button>
               )}
             </div>
 
-            {/* Chronic Conditions (Crucial for Nurse) */}
             <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 shadow-2xl">
               <h4 className="text-white text-[10px] font-black uppercase mb-6 text-center tracking-widest flex items-center justify-center gap-2 border-b border-slate-800 pb-4">
-                <Clipboard size={16} className="text-emerald-500" /> Chronic Conditions
+                <FileText size={16} className="text-emerald-500" /> Chronic Conditions
               </h4>
               <div className="flex flex-wrap gap-2 justify-center">
-                {medicalRecord?.medicalConditions && Object.entries(medicalRecord.medicalConditions).map(([key, value]) => (
-                  value === true && (
+                {medicalRecord?.medicalConditions && Object.entries(medicalRecord.medicalConditions)
+                  .filter(([key, value]) => value === true && key !== 'id')
+                  .map(([key]) => (
                     <span key={key} className="bg-slate-800 text-blue-400 text-[9px] px-3 py-2 rounded-xl font-black border border-slate-700 uppercase">
-                      {key.replace('has', '')}
+                      {key.replace('has', '').replace(/([A-Z])/g, ' $1').trim()}
                     </span>
-                  )
-                ))}
-                {(!medicalRecord?.medicalConditions) && (
-                  <span className="text-slate-500 text-[10px] font-bold italic">No chronic conditions listed</span>
+                  ))
+                }
+                {(!medicalRecord?.medicalConditions || Object.values(medicalRecord.medicalConditions).every(v => v === false || typeof v !== 'boolean')) && (
+                  <span className="text-slate-500 text-[10px] font-bold italic text-center">No conditions listed</span>
                 )}
               </div>
             </div>

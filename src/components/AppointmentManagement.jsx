@@ -3,7 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import {
   Video, Home, Calendar, Clock, Loader2, Search,
-  Trash2, ChevronDown, Stethoscope, Plus, Info, X, Filter, Edit2, Check
+  Trash2, ChevronDown, Stethoscope, Plus, Info, X, Filter, Edit2, Check, MapPin
 } from "lucide-react";
 
 const API_BASE = "https://healthcare52.runasp.net/api";
@@ -14,7 +14,8 @@ export default function AppointmentManagement() {
   const headers = { Authorization: `Bearer ${token}` };
 
   const [activeTab, setActiveTab] = useState("appointments");
-  const [statusFilter, setStatusFilter] = useState("All"); 
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [typeFilter, setTypeFilter] = useState("All");
   const [appointments, setAppointments] = useState([]);
   const [schedule, setSchedule] = useState({
     clinicFee: 0, homeVisitFee: 0, onlineFee: 0,
@@ -44,12 +45,21 @@ export default function AppointmentManagement() {
   const fetchAppointments = async (page, isLoadMore = false) => {
     try {
       isLoadMore ? setLoadingMore(true) : setLoading(true);
-      const res = await axios.get(`${API_BASE}/doctor-appointments/me?pageNumber=${page}&pageSize=20`, { headers });
+      
+      // Use the 'page' parameter passed directly to the function
+      const res = await axios.get(`${API_BASE}/doctor-appointments/me?page=${page}&pageSize=20`, { headers });
+      
       const newItems = res.data.items || [];
+      const hasNext = res.data.hasNextPage;
+
       setAppointments(prev => isLoadMore ? [...prev, ...newItems] : newItems);
-      setHasMore(newItems.length === 20);
-    } catch (err) { console.error(err); } 
-    finally { setLoading(false); setLoadingMore(false); }
+      setHasMore(hasNext);
+    } catch (err) { 
+      console.error(err); 
+    } finally { 
+      setLoading(false); 
+      setLoadingMore(false); 
+    }
   };
 
   const fetchSchedule = async () => {
@@ -71,10 +81,13 @@ export default function AppointmentManagement() {
     fetchSchedule();
   }, []);
 
+  // FIXED: Correctly incrementing and passing the page number
   const handleLoadMore = () => {
+    if (!hasMore || loadingMore) return;
+    
     const nextPage = pageNumber + 1;
-    setPageNumber(nextPage);
-    fetchAppointments(nextPage, true);
+    setPageNumber(nextPage); // Update state for next time
+    fetchAppointments(nextPage, true); // Use the locally calculated nextPage immediately
   };
 
   // =========================
@@ -126,7 +139,7 @@ export default function AppointmentManagement() {
   };
 
   // =========================
-  // DELETE SINGLE SLOT
+  // DELETE HANDLERS
   // =========================
   const handleDeleteSlot = async (id) => {
     if (!window.confirm("حذف هذا الموعد؟")) return;
@@ -136,9 +149,6 @@ export default function AppointmentManagement() {
     } catch (err) { alert("Failed to delete slot"); }
   };
 
-  // =========================
-  // DELETE ALL SLOTS OF A DAY
-  // =========================
   const handleDeleteDay = async (date) => {
     if (!window.confirm("حذف جميع مواعيد هذا اليوم؟")) return;
     try {
@@ -154,7 +164,7 @@ export default function AppointmentManagement() {
     <div className="min-h-screen bg-[#F8FAFC] pb-20 px-4 font-sans text-slate-900">
       <div className="max-w-5xl mx-auto">
         
-        {/* TOP BAR / LOGO */}
+        {/* TOP BAR */}
         <div className="py-8 flex justify-between items-center">
           <h1 className="text-2xl font-black text-blue-600 tracking-tighter italic">Flow.</h1>
           <div className="w-10 h-10 bg-white border border-slate-200 rounded-full flex items-center justify-center shadow-sm">
@@ -176,7 +186,6 @@ export default function AppointmentManagement() {
 
         {activeTab === "appointments" ? (
           <div className="space-y-6">
-            {/* SEARCH & FILTER */}
             <div className="flex flex-col md:flex-row gap-4 items-center">
               <div className="relative group flex-1 w-full">
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
@@ -188,7 +197,25 @@ export default function AppointmentManagement() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="relative w-full md:w-64">
+
+              <div className="relative w-full md:w-56">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
+                  <Plus size={18} />
+                </div>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-2xl py-5 pl-12 pr-10 text-sm font-bold text-slate-700 outline-none appearance-none focus:ring-4 ring-blue-500/5 transition-all shadow-sm cursor-pointer"
+                >
+                  <option value="All">All Types</option>
+                  <option value="HomeVisit">Home Visit</option>
+                  <option value="OnSiteVisit">On Site</option>
+                  <option value="Online">Online</option>
+                </select>
+                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+              </div>
+
+              <div className="relative w-full md:w-56">
                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                   <Filter size={18} />
                 </div>
@@ -203,6 +230,7 @@ export default function AppointmentManagement() {
                   <option value="Completed">Completed</option>
                   <option value="Cancelled">Cancelled</option>
                   <option value="Decliend">Decliend</option>
+                  <option value="noShow">No Show</option>
                 </select>
                 <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
@@ -216,21 +244,22 @@ export default function AppointmentManagement() {
                   .filter(appt => {
                     const matchesSearch = appt.patientName?.toLowerCase().includes(searchTerm.toLowerCase());
                     const matchesStatus = statusFilter === "All" || appt.status === statusFilter;
-                    return matchesSearch && matchesStatus;
+                    const matchesType = typeFilter === "All" || appt.appointmentType === typeFilter;
+                    return matchesSearch && matchesStatus && matchesType;
                   })
                   .map((appt) => (
                     <div key={appt.id} className="bg-white border border-slate-100 rounded-3xl p-5 flex items-center gap-6 shadow-sm hover:shadow-md transition-all group">
                       <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 ${appt.appointmentType === "Online" ? "bg-blue-50 text-blue-600" : "bg-indigo-50 text-indigo-600"}`}>
-                        {appt.appointmentType === "Online" ? <Video size={28} /> : <Home size={28} />}
+                        {appt.appointmentType === "Online" ? <Video size={28} /> : (appt.appointmentType === "HomeVisit" ? <Home size={28} /> : <MapPin size={28}/>)}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <h3 className="text-lg font-bold text-slate-800">{appt.patientName}</h3>
                           <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter ${
                             appt.status === "Confirmed" ? "bg-blue-50 text-blue-600" :
-                            appt.status === "Complete" ? "bg-green-50 text-green-600" :
+                            appt.status === "Completed" ? "bg-green-50 text-green-600" :
                             appt.status === "Cancelled" ? "bg-slate-100 text-slate-500" :
-                            appt.status === "Rejected" ? "bg-red-50 text-red-600" :
+                            appt.status === "Decliend" ? "bg-red-50 text-red-600" :
                             "bg-amber-50 text-amber-600"
                           }`}>
                             {appt.status}
@@ -239,6 +268,7 @@ export default function AppointmentManagement() {
                         <div className="flex flex-wrap gap-4 text-slate-400 font-semibold text-[11px] uppercase tracking-widest">
                           <span className="flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> {appt.date}</span>
                           <span className="flex items-center gap-1.5"><Clock size={14} className="text-blue-500"/> {appt.startTime?.slice(0, 5)}</span>
+                          <span className="flex items-center gap-1.5 text-slate-500 font-black tracking-normal">[{appt.appointmentType}]</span>
                         </div>
                       </div>
                       <button onClick={() => navigate(`/doctor/appointment-details/${appt.id}`)} className="bg-slate-50 text-slate-900 px-6 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all shadow-sm border border-slate-100">
@@ -250,11 +280,12 @@ export default function AppointmentManagement() {
                 {appointments.filter(appt => {
                   const matchesSearch = appt.patientName?.toLowerCase().includes(searchTerm.toLowerCase());
                   const matchesStatus = statusFilter === "All" || appt.status === statusFilter;
-                  return matchesSearch && matchesStatus;
+                  const matchesType = typeFilter === "All" || appt.appointmentType === typeFilter;
+                  return matchesSearch && matchesStatus && matchesType;
                 }).length === 0 && (
                   <div className="text-center py-20 bg-white rounded-[2.5rem] border border-dashed border-slate-200">
                     <Info className="mx-auto text-slate-200 mb-2" size={40} />
-                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No {statusFilter !== "All" ? statusFilter : ""} results found</p>
+                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">No results found</p>
                   </div>
                 )}
 
@@ -270,8 +301,6 @@ export default function AppointmentManagement() {
 
         ) : (
           <div className="space-y-10 animate-in fade-in duration-500">
-
-            {/* ── CONSULTATION SETTINGS FORM ── */}
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center text-white">
@@ -281,7 +310,6 @@ export default function AppointmentManagement() {
               </div>
 
               <form onSubmit={handleUpdateSettings} className="space-y-6">
-                {/* FEES ROW */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="flex flex-col gap-2.5">
                     <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter ml-1">Clinic Fee (EGP)</label>
@@ -321,7 +349,6 @@ export default function AppointmentManagement() {
                   </div>
                 </div>
 
-                {/* TOGGLES ROW */}
                 <div className="flex flex-col sm:flex-row gap-4">
                   <ToggleCard
                     label="Allow Home Visits"
@@ -339,7 +366,6 @@ export default function AppointmentManagement() {
                   />
                 </div>
 
-                {/* SAVE BUTTON */}
                 <div className="flex justify-end">
                   <button
                     type="submit"
@@ -353,7 +379,6 @@ export default function AppointmentManagement() {
               </form>
             </div>
 
-            {/* ── GENERATE SLOTS BOX ── */}
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-sm">
               <div className="flex items-center gap-3 mb-8">
                 <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
@@ -392,7 +417,6 @@ export default function AppointmentManagement() {
               </form>
             </div>
 
-            {/* ── SLOTS GRID ── */}
             <div className="space-y-8">
               {schedule.slots && schedule.slots.length > 0 ? (
                 schedule.slots.map(({ date, day, slots }) => (
@@ -407,7 +431,6 @@ export default function AppointmentManagement() {
                       <button
                         onClick={() => handleDeleteDay(date)}
                         className="w-12 h-12 rounded-2xl border border-slate-100 text-slate-300 hover:text-red-500 hover:bg-red-50 hover:border-red-100 transition-all flex items-center justify-center"
-                        title="Delete all slots for this day"
                       >
                         <Trash2 size={20} />
                       </button>
@@ -444,20 +467,16 @@ export default function AppointmentManagement() {
                 ))
               ) : (
                 <div className="text-center py-20 bg-white border border-dashed border-slate-200 rounded-[3rem]">
-                  <Info className="mx-auto text-slate-200 mb-4" size={48} />
                   <p className="text-slate-400 font-bold uppercase text-xs tracking-widest">No slots available</p>
                 </div>
               )}
             </div>
-
           </div>
         )}
       </div>
     </div>
   );
 }
-
-// ── UI HELPERS ──
 
 function ToggleCard({ label, icon, color, checked, onChange }) {
   const colors = {
@@ -479,23 +498,6 @@ function ToggleCard({ label, icon, color, checked, onChange }) {
       </div>
       <div className={`w-12 h-6 rounded-full transition-all relative ${checked ? "bg-white/30" : "bg-slate-200"}`}>
         <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${checked ? "left-6" : "left-0.5"}`} />
-      </div>
-    </div>
-  );
-}
-
-function FeeCard({ icon, label, price, color }) {
-  const colors = {
-    blue: "bg-blue-50 text-blue-600 border-blue-100",
-    indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
-    purple: "bg-purple-50 text-purple-600 border-purple-100"
-  };
-  return (
-    <div className="bg-white border border-slate-100 rounded-3xl p-6 flex items-center gap-5 shadow-sm">
-      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 border ${colors[color]}`}>{icon}</div>
-      <div>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label} Visit Fee</p>
-        <p className="text-xl font-black text-slate-800">{price} <span className="text-[10px] text-slate-400 ml-1">EGP</span></p>
       </div>
     </div>
   );

@@ -128,40 +128,57 @@ export default function AppointmentDetails() {
             </div>
             
             <div className="p-8 space-y-8">
+              {/* Status Warning */}
+              {appointment?.status !== "Completed" && (
+                <div className="bg-amber-50 border border-amber-200 text-amber-700 p-4 rounded-2xl flex items-center gap-3">
+                  <AlertCircle size={20} className="shrink-0" />
+                  <p className="text-xs font-bold uppercase tracking-tight">
+                    Diagnosis is locked. You can only add details when the status is 
+                    <span className="ml-1 px-2 py-0.5 bg-amber-200 rounded-md text-amber-900">Completed</span>
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div>
                   <label className="block font-black text-slate-700 mb-3 text-xs uppercase">Diagnosis</label>
                   <textarea 
-                    className="w-full border-2 border-slate-100 rounded-2xl p-4 text-sm h-32 outline-none focus:border-blue-500/50 resize-none font-bold"
+                    className={`w-full border-2 border-slate-100 rounded-2xl p-4 text-sm h-32 outline-none focus:border-blue-500/50 resize-none font-bold ${
+                      appointment?.status !== "Completed" ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white"
+                    }`}
                     value={diagnosis}
                     onChange={(e) => setDiagnosis(e.target.value)}
-                    placeholder="Enter patient diagnosis..."
+                    disabled={appointment?.status !== "Completed"}
+                    placeholder={appointment?.status !== "Completed" ? "LOCKED" : "Enter patient diagnosis..."}
                   />
                 </div>
                 <div>
                   <label className="block font-black text-slate-700 mb-3 text-xs uppercase">Prescriptions</label>
                   <textarea 
-                    className="w-full border-2 border-slate-100 rounded-2xl p-4 text-sm h-32 outline-none focus:border-blue-500/50 resize-none font-bold"
+                    className={`w-full border-2 border-slate-100 rounded-2xl p-4 text-sm h-32 outline-none focus:border-blue-500/50 resize-none font-bold ${
+                      appointment?.status !== "Completed" ? "bg-slate-50 text-slate-400 cursor-not-allowed" : "bg-white"
+                    }`}
                     value={prescription}
                     onChange={(e) => setPrescription(e.target.value)}
-                    placeholder="List medications and dosages..."
+                    disabled={appointment?.status !== "Completed"}
+                    placeholder={appointment?.status !== "Completed" ? "LOCKED" : "List medications and dosages..."}
                   />
                 </div>
               </div>
 
               {/* Lab Tests Checklist */}
-              <div className="bg-slate-50 border border-slate-100 rounded-[1.5rem] p-6">
+              <div className={`bg-slate-50 border border-slate-100 rounded-[1.5rem] p-6 ${appointment?.status !== "Completed" ? "opacity-60 pointer-events-none" : ""}`}>
                 <label className="block font-black text-blue-900 text-xs uppercase mb-4">Request Lab Tests</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                   {availableTests.map(test => (
                     <div 
                       key={test.id} 
-                      onClick={() => toggleTest(test.id)}
-                      className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border-2 ${
+                      onClick={() => appointment?.status === "Completed" && toggleTest(test.id)}
+                      className={`flex items-center justify-between p-3 rounded-xl transition-all border-2 ${
                         selectedTests.includes(test.id) 
                         ? 'bg-blue-600 border-blue-600 text-white shadow-md' 
                         : 'bg-white border-slate-100 text-slate-600 hover:border-blue-200'
-                      }`}
+                      } ${appointment?.status !== "Completed" ? "cursor-not-allowed" : "cursor-pointer"}`}
                     >
                       <span className="text-[11px] font-black">{test.name}</span>
                       {selectedTests.includes(test.id) && <Check size={14} />}
@@ -171,15 +188,18 @@ export default function AppointmentDetails() {
                 <p className="mt-3 text-[10px] text-slate-400 font-bold">Selected: {selectedTests.length} tests</p>
               </div>
 
-              <div className="flex justify-end pt-4">
-                <button 
-                  onClick={handleSaveDiagnosis}
-                  disabled={submitting}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl flex items-center gap-3 text-xs font-black shadow-lg shadow-emerald-100 active:scale-95 disabled:opacity-50 transition-all"
-                >
-                  {submitting ? <Loader2 className="animate-spin" size={18}/> : <><Save size={18} /> SAVE & SEND DATA</>}
-                </button>
-              </div>
+              {/* Only show Save button if Completed */}
+              {appointment?.status === "Completed" && (
+                <div className="flex justify-end pt-4">
+                  <button 
+                    onClick={handleSaveDiagnosis}
+                    disabled={submitting}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-10 py-4 rounded-2xl flex items-center gap-3 text-xs font-black shadow-lg shadow-emerald-100 active:scale-95 disabled:opacity-50 transition-all"
+                  >
+                    {submitting ? <Loader2 className="animate-spin" size={18}/> : <><Save size={18} /> SAVE & SEND DATA</>}
+                  </button>
+                </div>
+              )}
             </div>
           </section>
 
