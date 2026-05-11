@@ -1,207 +1,243 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { 
-  Calendar, Clock, MapPin, TestTube, Search, Activity, 
-  Home, Users, CheckCircle, Upload, FileText, X, Filter, Trash2, Save
+  Calendar, Search, MapPin, TestTube, 
+  Eye, CheckCircle2, ChevronDown, 
+  Activity, Beaker, DollarSign, Save, Clock, X
 } from "lucide-react";
 
-export default function LabAppointments() {
-  const [activeSubTab, setActiveSubTab] = useState('All Appointments');
-  const [searchQuery, setSearchQuery] = useState('');
-  const fileInputRef = useRef(null);
-  const [uploadingFor, setUploadingFor] = useState(null);
+const API_BASE_URL = "https://healthcare52.runasp.net/api";
 
-  // ربط البيانات بالـ JSON الخاص بالمواعيد (items)
-  const [appointments, setAppointments] = useState([
-    { 
-      id: "019d6a64-f57e-7911-9b3a-a2ae3557b0e3", 
-      patientName: "تامر السباعى", 
-      status: "Pending", 
-      date: "2026-04-15", 
-      startTime: "18:00:00", 
-      appointmentType: "HomeVisit", 
-      tests: ["Fasting Blood Sugar (FBS)"], 
-      address: "9 عمارة يعقوب شارع الجلاله النزهة" 
-    },
-    { 
-      id: "019d4eb3-0c08-7823-a16d-bb467a75933d", 
-      patientName: "patientser", 
-      status: "ResultsDone", 
-      date: "2026-04-04", 
-      startTime: "00:00:00", 
-      appointmentType: "HomeVisit", 
-      tests: ["Fasting Blood Sugar (FBS)"], 
-      address: "7 شارع مصر والسودان" 
-    }
-  ]);
+export default function LabManagement() {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState("Appointments");
+  const [loading, setLoading] = useState(false);
+  
+  // 1. Appointments State
+  const [appointments, setAppointments] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // ربط أوقات العمل من الـ JSON (workingDays & times)
+  // 2. Schedule State
   const [labSettings, setLabSettings] = useState({
-    openingTime: "07:00:00",
-    closingTime: "23:00:00",
-    homeVisitFee: "350",
-    workingDays: {
-      isSaturdayOpen: false,
-      isSundayOpen: true,
-      isMondayOpen: true,
-      isTuesdayOpen: true,
-      isWednesdayOpen: true,
-      isThursdayOpen: true,
-      isFridayOpen: false
-    }
+    homeVisitFee: 100.00,
+    openingTime: "22:00:00",
+    closingTime: "08:00:00",
+    isSaturdayOpen: true,
+    isSundayOpen: true,
+    isMondayOpen: true,
+    isTuesdayOpen: true,
+    isWednesdayOpen: true,
+    isThursdayOpen: true,
+    isFridayOpen: false
   });
 
-  const filteredAppointments = useMemo(() => {
-    return appointments.filter(app => 
-      app.patientName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [searchQuery, appointments]);
-
-  const handleUploadClick = (id) => { setUploadingFor(id); fileInputRef.current.click(); };
-  
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && uploadingFor) {
-      setAppointments(prev => prev.map(app => 
-        app.id === uploadingFor ? { ...app, status: 'ResultsDone' } : app
-      ));
-      setUploadingFor(null);
+  // Fetch Appointments
+  const fetchAppointments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const statusParam = statusFilter !== "All" ? `&status=${statusFilter}` : "";
+      const searchParam = searchTerm ? `&searchTerm=${searchTerm}` : "";
+      const res = await axios.get(
+        `${API_BASE_URL}/lab-appointments/me?pageNumber=1&pageSize=10${statusParam}${searchParam}`,
+        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
+      );
+      setAppointments(res.data.items || []);
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [statusFilter, searchTerm]);
 
-  const toggleDay = (dayKey) => {
-    setLabSettings(prev => ({
-      ...prev,
-      workingDays: { ...prev.workingDays, [dayKey]: !prev.workingDays[dayKey] }
-    }));
+  // Fetch Schedule
+  const fetchSchedule = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/Labs/me/schedule`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      });
+      if (res.data) setLabSettings(res.data);
+    } catch (err) {
+      console.error("Error fetching schedule:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "Appointments") fetchAppointments();
+    else fetchSchedule();
+  }, [tab, fetchAppointments, fetchSchedule]);
+
+  const handleUpdateSchedule = async () => {
+    try {
+      await axios.put(`${API_BASE_URL}/Labs/me/schedule`, labSettings, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` }
+      });
+      alert("Pricing & Schedule updated successfully!");
+    } catch (err) {
+      alert("Update failed. Please check your data.");
+    }
   };
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-5 duration-700 font-sans p-2">
-      <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept=".pdf" />
-
-      {/* Header */}
-      <div className="flex justify-between items-end gap-6 flex-wrap">
-        <div className="text-left">
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Lab Management</h2>
-          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2 italic">Dashboard & Schedule Controls</p>
-        </div>
-      </div>
-
-      {/* Tab Switcher */}
-      <div className="bg-slate-100/50 p-1.5 rounded-[1.5rem] flex w-full md:w-fit gap-2 border border-slate-100">
-        <button 
-          onClick={() => setActiveSubTab('All Appointments')} 
-          className={`px-10 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'All Appointments' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-        >
-          All Appointments
-        </button>
-        <button 
-          onClick={() => setActiveSubTab('Schedule')} 
-          className={`px-10 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeSubTab === 'Schedule' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-        >
-          Working Hours
-        </button>
-      </div>
-
-      {/* 1. All Appointments View */}
-      {activeSubTab === 'All Appointments' && (
-        <div className="space-y-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={16} />
-            <input 
-              type="text" 
-              placeholder="Search by patient name..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-6 py-4 bg-white border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all"
-            />
+    <div className="min-h-screen bg-[#f8fafc] font-sans py-10 px-4" dir="ltr">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        {/* Navigation Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-200 pb-8">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight flex items-center gap-3">
+              <Beaker className="text-blue-600" size={32} /> Lab Management
+            </h2>
+            <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-1 ml-11">
+              Control center for patient tests and lab availability
+            </p>
           </div>
 
-          <div className="bg-white p-8 rounded-[3rem] border border-slate-50 shadow-sm space-y-4">
-            {filteredAppointments.map(app => (
-              <div key={app.id} className="p-6 border border-slate-50 rounded-[2rem] hover:border-blue-100 transition-all bg-white shadow-sm">
-                <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center font-black text-slate-400 text-sm">{app.patientName[0]}</div>
-                    <div className="text-left">
-                      <h5 className="font-black text-slate-700">{app.patientName}</h5>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${app.status === 'ResultsDone' ? 'bg-blue-600 text-white' : 'bg-orange-100 text-orange-600'}`}>
-                        {app.status}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {app.status === 'Pending' && (
-                      <button onClick={() => handleUploadClick(app.id)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-2 hover:bg-blue-700">
-                        <Upload size={12}/> Upload
-                      </button>
-                    )}
-                    <div className="text-slate-400 text-[10px] font-black bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 flex items-center gap-2">
-                      <Clock size={12}/> {app.startTime}
-                    </div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-left border-t border-slate-50 pt-6">
-                  <InfoItem label="Date" value={app.date} icon={<Calendar size={14}/>} />
-                  <InfoItem label="Test" value={app.tests.join(', ')} icon={<TestTube size={14}/>} />
-                  <InfoItem label="Type" value={app.appointmentType} icon={app.appointmentType === 'HomeVisit' ? <Home size={14}/> : <Activity size={14}/>} />
-                </div>
-              </div>
+          <div className="flex bg-slate-200/50 p-1 rounded-2xl w-full md:w-80 shadow-inner">
+            {["Appointments", "Schedule"].map((t) => (
+              <button key={t} onClick={() => setTab(t)}
+                className={`flex-1 py-3 rounded-xl text-[10px] font-black transition-all ${tab === t ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"}`}>
+                {t.toUpperCase()}
+              </button>
             ))}
           </div>
         </div>
-      )}
 
-      {/* 2. Schedule View (Settings) */}
-      {activeSubTab === 'Schedule' && (
-        <div className="bg-white p-10 rounded-[3rem] border border-slate-50 shadow-sm space-y-10 animate-in fade-in">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            {/* Times Selection */}
-            <div className="space-y-6">
-              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest text-left">General Availability</h4>
-              <div className="bg-slate-50/50 p-8 rounded-[2.5rem] border border-slate-100 space-y-6">
-                <div className="flex items-center justify-between">
-                   <div className="text-left">
-                      <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Opening Time</p>
-                      <input type="time" value={labSettings.openingTime} onChange={(e) => setLabSettings({...labSettings, openingTime: e.target.value})} className="bg-white border border-slate-200 rounded-xl px-4 py-2 font-black text-sm outline-none focus:border-blue-500" />
-                   </div>
-                   <div className="text-left">
-                      <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Closing Time</p>
-                      <input type="time" value={labSettings.closingTime} onChange={(e) => setLabSettings({...labSettings, closingTime: e.target.value})} className="bg-white border border-slate-200 rounded-xl px-4 py-2 font-black text-sm outline-none focus:border-blue-500" />
-                   </div>
-                </div>
-                <div className="pt-4 border-t border-slate-100">
-                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2 text-left">Home Visit Fee (EGP)</p>
-                   <input type="number" value={labSettings.homeVisitFee} onChange={(e) => setLabSettings({...labSettings, homeVisitFee: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-black text-sm outline-none" />
-                </div>
+        {tab === "Appointments" ? (
+          <>
+            {/* Search & Filters */}
+            <div className="flex flex-col md:flex-row gap-4 bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100">
+              <div className="relative flex-1">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+                <input type="text" placeholder="Search by patient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-16 pr-6 py-4 bg-slate-50 border-0 rounded-[1.5rem] text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
               </div>
-              <button className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-                <Save size={16}/> Save Settings
-              </button>
+              <div className="relative w-full md:w-64">
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full pl-6 pr-12 py-4 bg-blue-50 text-blue-700 rounded-[1.5rem] text-[10px] font-black uppercase appearance-none outline-none cursor-pointer">
+                  <option value="All">All Appointments</option>
+                  <option value="Pending">Pending</option>
+                  <option value="ResultsDone">Results Done ✅</option>
+                </select>
+                <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" size={18} />
+              </div>
             </div>
 
-            {/* Days Selection */}
-            <div className="space-y-6">
-              <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest text-left">Working Days</h4>
-              <div className="grid grid-cols-1 gap-2">
-                {Object.entries(labSettings.workingDays).map(([dayKey, isOpen]) => (
-                  <div key={dayKey} onClick={() => toggleDay(dayKey)} className={`p-4 rounded-2xl border transition-all cursor-pointer flex justify-between items-center ${isOpen ? 'bg-blue-50/50 border-blue-100' : 'bg-white border-slate-50 opacity-60 hover:opacity-100'}`}>
-                    <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{dayKey.replace('is', '').replace('Open', '')}</span>
-                    {isOpen ? <CheckCircle size={18} className="text-blue-600" /> : <div className="w-[18px] h-[18px] rounded-full border-2 border-slate-200" />}
+            {/* List */}
+            <div className="grid gap-6">
+              {loading ? <div className="flex justify-center py-20"><Activity className="animate-spin text-blue-600" size={40} /></div> :
+                appointments.map((apt) => (
+                  <div key={apt.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col lg:flex-row justify-between gap-8 hover:border-blue-200 transition-all group">
+                    <div className="flex-1 space-y-6">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center font-black text-slate-500 text-xl">{apt.patientName?.[0] || "P"}</div>
+                        <div>
+                          <h3 className="text-xl font-black text-slate-800">{apt.patientName}</h3>
+                          <div className="flex gap-2">
+                            <span className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase ${apt.status === 'ResultsDone' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                              {apt.status === 'ResultsDone' ? 'Results Available' : apt.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <InfoBox icon={<TestTube size={14} className="text-blue-500"/>} label="Tests" value={apt.tests?.join(", ") || "N/A"} />
+                        <InfoBox icon={<MapPin size={14} className="text-rose-500"/>} label="Location" value={apt.address || "In-Lab Appointment"} />
+                        <InfoBox icon={<Calendar size={14} className="text-blue-500"/>} label="Date" value={`${new Date(apt.date).toLocaleDateString()}`} />
+                      </div>
+                    </div>
+                    <div className="flex flex-col justify-center gap-3 lg:w-64 lg:pl-8 lg:border-l border-slate-100">
+                      {apt.status === 'ResultsDone' && (
+                        <div className="bg-emerald-50 text-emerald-600 py-3 rounded-2xl text-center font-black text-[9px] uppercase border border-emerald-100 flex items-center justify-center gap-2">
+                          <CheckCircle2 size={14}/> Result Completed
+                        </div>
+                      )}
+                      <button onClick={() => navigate(`/lab/appointment-details/${apt.id}`)} className="bg-blue-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-slate-900 transition-all shadow-lg shadow-blue-50">
+                        <Eye size={16}/> View Details
+                      </button>
+                    </div>
                   </div>
-                ))}
-              </div>
+                ))
+              }
+              {!loading && appointments.length === 0 && (
+                <div className="bg-white p-20 rounded-[2.5rem] text-center border border-dashed border-slate-200">
+                  <p className="text-slate-400 font-bold">No appointments found matching your filters.</p>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          /* --- Schedule Section --- */
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-in slide-in-from-bottom-4">
+            <div className="lg:col-span-2">
+              <section className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-4 mb-10">
+                  <div className="p-3 bg-blue-50 rounded-2xl text-blue-600"><DollarSign size={24} /></div>
+                  <h2 className="text-lg font-black uppercase tracking-widest text-slate-800">Pricing & Hours</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Home Visit Fee (EGP)</label>
+                    <div className="flex items-center bg-slate-50 border border-slate-100 p-5 rounded-[1.5rem] focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                        <span className="text-xl font-black text-blue-600 mr-3">£</span>
+                        <input type="number" value={labSettings.homeVisitFee} onChange={(e) => setLabSettings({...labSettings, homeVisitFee: e.target.value})} 
+                         className="bg-transparent w-full text-slate-900 font-black text-xl outline-none" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Opening</label>
+                      <input type="time" value={labSettings.openingTime} onChange={(e) => setLabSettings({...labSettings, openingTime: e.target.value})}
+                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] font-black text-sm outline-none" />
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Closing</label>
+                      <input type="time" value={labSettings.closingTime} onChange={(e) => setLabSettings({...labSettings, closingTime: e.target.value})}
+                        className="w-full p-5 bg-slate-50 border border-slate-100 rounded-[1.5rem] font-black text-sm outline-none" />
+                    </div>
+                  </div>
+                </div>
+
+                <button onClick={handleUpdateSchedule} className="w-full bg-blue-600 text-white py-5 rounded-[1.5rem] font-black text-[11px] uppercase tracking-[0.2em] hover:bg-slate-900 transition-all shadow-xl shadow-blue-50 flex items-center justify-center gap-3">
+                  <Save size={18}/> Update Lab Policy
+                </button>
+              </section>
+            </div>
+
+            <div className="lg:col-span-1">
+              <section className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-slate-100 h-full">
+                <div className="flex items-center gap-3 mb-8">
+                  <Clock size={20} className="text-slate-400" />
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Availability</h4>
+                </div>
+                
+                <div className="space-y-3">
+                  {["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day) => {
+                    const key = `is${day}Open`;
+                    return (
+                      <div key={day} onClick={() => setLabSettings({...labSettings, [key]: !labSettings[key]})}
+                        className={`p-4 rounded-2xl border cursor-pointer flex justify-between items-center transition-all ${labSettings[key] ? 'bg-blue-50 border-blue-100' : 'bg-white border-slate-50 opacity-40'}`}>
+                        <span className="text-[11px] font-black text-slate-700 uppercase">{day}</span>
+                        {labSettings[key] ? <CheckCircle2 size={18} className="text-blue-600" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-const InfoItem = ({ label, value, icon }) => (
-  <div className="space-y-1">
-    <p className="text-[9px] font-black text-slate-300 uppercase flex items-center gap-1.5">{icon} {label}</p>
-    <p className="text-[11px] font-black text-slate-600">{value}</p>
+const InfoBox = ({ icon, label, value }) => (
+  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-1">
+    <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-2">{icon} {label}</p>
+    <p className="text-[11px] font-bold text-slate-700 truncate">{value}</p>
   </div>
 );

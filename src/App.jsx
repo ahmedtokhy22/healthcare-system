@@ -4,23 +4,23 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 // --- 1. استيراد المكونات الثابتة ---
 import Navbar from './components/Navbar'; 
 
-// --- 2. تعريف الصفحات (Lazy Loading) ---
+// --- 2. تعريف الصفحات باستخدام Lazy Loading لسرعة التحميل ---
 const AuthPage = lazy(() => import('./components/AuthPage'));
 const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
 const OTPPage = lazy(() => import('./components/OTPPage'));
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage'));
 const RegistrationPage1 = lazy(() => import('./components/RegistrationPage1'));
 const RegistrationPage2 = lazy(() => import('./components/RegistrationPage2'));
-
-// الصفحة الموحدة للطلبات
 const PendingRequests = lazy(() => import('./components/PendingRequests'));
 
-// Admin
+// مكونات المسؤول (Admin)
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const AdminUsers = lazy(() => import('./components/AdminUsers'));
-const UserList = lazy(() => import('./components/UserList'));
+const PostManagement = lazy(() => import('./components/PostManagement')); 
+const TestManagement = lazy(() => import('./components/TestManagement')); 
+const SpecialtyManagement = lazy(() => import('./components/SpecialtyManagement')); 
 
-// Doctor
+// مكونات الطبيب (Doctor)
 const DoctorDashboard = lazy(() => import('./components/DoctorDashboard'));
 const DoctorManageAppointments = lazy(() => import('./components/AppointmentManagement'));
 const AppointmentDetails = lazy(() => import('./components/AppointmentDetails'));
@@ -29,18 +29,20 @@ const DoctorPosts = lazy(() => import('./components/DoctorPosts'));
 const PatientProfile = lazy(() => import('./components/PatientProfile'));
 const DoctorChat = lazy(() => import('./components/DoctorChat'));
 
-// Nurse
+// مكونات التمريض (Nurse)
 const NurseDashboard = lazy(() => import('./components/NurseDashboard'));
 const NurseManageAppointments = lazy(() => import('./components/NurseManageAppointments'));
 const NurseProfile = lazy(() => import('./components/NurseProfile'));
+const NurseAppointmentDetails = lazy(() => import('./components/NurseAppointmentDetails'));
 
-// Lab
+// مكونات المختبر (Lab)
 const LabDashboard = lazy(() => import('./components/LabDashboard'));
 const LabAppointments = lazy(() => import('./components/LabAppointments'));
 const LabTestManagement = lazy(() => import('./components/LabTestManagement'));
 const LabProfile = lazy(() => import('./components/LabProfile'));
+const LabDetails = lazy(() => import('./components/LabDetails'));
 
-// --- 3. المكونات المساعدة (Guards) ---
+// --- 3. حماية المسارات (Guards) ---
 
 const ProtectedRoute = ({ children, allowedRole }) => {
   const token = localStorage.getItem('token');
@@ -50,6 +52,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
     return <Navigate to="/" replace />;
   }
 
+  // التأكد من أن الرتبة مطابقة (Admin, Lab, etc.)
   if (allowedRole && userRole?.toLowerCase() !== allowedRole.toLowerCase()) {
     return <Navigate to={`/${userRole?.toLowerCase()}/dashboard`} replace />;
   }
@@ -57,6 +60,7 @@ const ProtectedRoute = ({ children, allowedRole }) => {
   return children;
 };
 
+// هيكل الصفحة الرئيسي الذي يعرض الـ Navbar والمحتوى
 const DashboardLayout = ({ children, role }) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const currentRole = role || localStorage.getItem('role') || 'Guest';
@@ -76,11 +80,12 @@ const DashboardLayout = ({ children, role }) => {
 export default function App() {
   return (
     <Router>
+      {/* شاشة التحميل (Spinner) أثناء تحميل الصفحات */}
       <Suspense fallback={
         <div className="flex flex-col items-center justify-center h-screen bg-[#f8fafc]">
           <div className="relative flex items-center justify-center">
              <div className="w-16 h-16 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-             <div className="absolute w-8 h-8 bg-blue-600 rounded-lg animate-pulse shadow-lg shadow-blue-200"></div>
+             <div className="absolute w-8 h-8 bg-blue-600 rounded-lg animate-pulse"></div>
           </div>
           <div className="mt-6 text-blue-600 font-black tracking-[0.2em] uppercase text-[10px]">
              جاري تحميل النظام الطبي...
@@ -88,7 +93,7 @@ export default function App() {
         </div>
       }>
         <Routes>
-          {/* المسارات العامة */}
+          {/* المسارات العامة (Public) */}
           <Route path="/" element={<AuthPage />} />
           <Route path="/register-1" element={<RegistrationPage1 />} />
           <Route path="/register-2" element={<RegistrationPage2 />} />
@@ -96,14 +101,33 @@ export default function App() {
           <Route path="/otp-verification" element={<OTPPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-          {/* مسارات المسؤول (Admin) */}
+          {/* مسارات المسؤول (Admin) - تشمل الإضافات الجديدة */}
           <Route path="/admin/*" element={
             <ProtectedRoute allowedRole="Admin">
               <DashboardLayout role="Admin">
                 <Routes>
                   <Route path="dashboard" element={<AdminPanel />} />
                   <Route path="users" element={<AdminUsers />} />
-                  <Route path="user-list" element={<UserList />} />
+                  <Route path="posts" element={<PostManagement />} />
+                  <Route path="tests" element={<TestManagement />} />
+                  <Route path="specialties" element={<SpecialtyManagement />} />
+                  <Route path="*" element={<Navigate to="dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          } />
+
+          {/* مسارات المختبر (Lab) - حل مشكلة إدارة التحاليل */}
+          <Route path="/lab/*" element={
+            <ProtectedRoute allowedRole="Lab">
+              <DashboardLayout role="Lab">
+                <Routes>
+                  <Route path="dashboard" element={<LabDashboard />} />
+                  <Route path="appointments" element={<LabAppointments />} />
+                  <Route path="appointment-details/:id" element={<LabDetails />} />
+                  <Route path="pending-requests" element={<PendingRequests type="Lab" />} />
+                  <Route path="tests" element={<LabTestManagement />} />
+                  <Route path="profile" element={<LabProfile />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
                 </Routes>
               </DashboardLayout>
@@ -135,8 +159,8 @@ export default function App() {
               <DashboardLayout role="Nurse">
                 <Routes>
                   <Route path="dashboard" element={<NurseDashboard />} />
-                  {/* المسار المحدث ليتوافق مع Navbar (Nurse Station) */}
                   <Route path="manage-appointments" element={<NurseManageAppointments />} />
+                  <Route path="appointment-details/:id" element={<NurseAppointmentDetails />} />
                   <Route path="pending-requests" element={<PendingRequests type="Nurse" />} />
                   <Route path="profile" element={<NurseProfile />} />
                   <Route path="*" element={<Navigate to="dashboard" replace />} />
@@ -144,24 +168,8 @@ export default function App() {
               </DashboardLayout>
             </ProtectedRoute>
           } />
-          
-          {/* مسارات المختبر (Lab) */}
-          <Route path="/lab/*" element={
-            <ProtectedRoute allowedRole="Lab">
-              <DashboardLayout role="Lab">
-                <Routes>
-                  <Route path="dashboard" element={<LabDashboard />} />
-                  <Route path="appointments" element={<LabAppointments />} />
-                  <Route path="pending-requests" element={<PendingRequests type="Lab" />} />
-                  <Route path="tests" element={<LabTestManagement />} />
-                  <Route path="profile" element={<LabProfile />} />
-                  <Route path="*" element={<Navigate to="dashboard" replace />} />
-                </Routes>
-              </DashboardLayout>
-            </ProtectedRoute>
-          } />
 
-          {/* إعادة التوجيه الافتراضي */}
+          {/* تحويل أي مسار غير معروف إلى الصفحة الرئيسية */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
