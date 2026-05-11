@@ -1,34 +1,62 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { User, MessageSquare, Phone, MapPin, Camera, Save, X, CheckCircle, Briefcase, Loader2 } from "lucide-react";
+import { User, MessageSquare, Phone, MapPin, Camera, Save, X, CheckCircle, Briefcase, Loader2, Mail } from "lucide-react";
 
 const NurseProfile = () => {
-  // الربط مع بيانات الـ API المذكورة في الـ User Summary
+  // بيانات الـ Initial State فاضية عشان نمليها من الـ API
   const [formData, setFormData] = useState({
-    fullName: "Ahmed Ibrahim Tokhy Abdel Majeed", // من بيانات الـ CV
-    email: "ahmed.tokhy@example.com", // افتراضي بناءً على الاسم
-    phone: "01xxxxxxxxx", 
-    location: "Qanater Khairyah, Qalyubia, Egypt", // من الـ User Summary
-    specialization: "Fullstack Developer / Computer Science Student", // من الـ User Summary
-    bio: "Computer Science student at El Shorouk Academy, expected graduation June 2026. Proficient in Arabic and English." // من الـ User Summary
+    name: "",
+    email: "",
+    phoneNumber: "",
+    city: "",
+    address: "",
+    bio: "",
+    gender: ""
   });
 
   const [profileImage, setProfileImage] = useState(null);
   const [imageFile, setImageFile] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
   const fileInputRef = useRef(null);
 
-  // تحديث البيانات لو الـ API بعت بيانات جديدة (Simulating Endpoint Response)
+  const API_BASE = "http://localhost:5173/api/Nurses/profile"; // تأكد من الـ URL الصح لبروجكتك
+
+  // 1. جلب البيانات من الـ API عند فتح الصفحة
   useEffect(() => {
-    // هنا ممكن تحط دالة fetch لو الداتا جاية من السيرفر
-    // حالياً البيانات مربوطة بالـ User Summary الخاص بك
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(API_BASE, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        
+        const data = res.data;
+        setFormData({
+          name: data.name || "",
+          email: data.email || "",
+          phoneNumber: data.phoneNumber || "",
+          city: data.city || "",
+          address: data.address || "",
+          bio: data.bio || "",
+          gender: data.gender || ""
+        });
+        if (data.profilePictureUrl) setProfileImage(data.profilePictureUrl);
+      } catch (err) {
+        console.error("Fetch error:", err);
+        setStatus({ type: 'error', msg: 'Failed to load profile data' });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfile();
   }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    if (status.msg) setStatus({ type: '', msg: '' });
   };
 
   const handleImageChange = (e) => {
@@ -41,38 +69,58 @@ const NurseProfile = () => {
     }
   };
 
+  // 2. تحديث البيانات (PUT Request)
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setUpdating(true);
+    setStatus({ type: '', msg: '' });
 
     try {
-      const data = new FormData();
-      Object.keys(formData).forEach(key => data.append(key, formData[key]));
-      if (imageFile) data.append('image', imageFile);
+      const token = localStorage.getItem('token');
+      
+      // بنستخدم FormData عشان لو في صورة هتترفع
+      const dataToSend = new FormData();
+      dataToSend.append('Name', formData.name);
+      dataToSend.append('PhoneNumber', formData.phoneNumber);
+      dataToSend.append('City', formData.city);
+      dataToSend.append('Address', formData.address);
+      dataToSend.append('Bio', formData.bio);
+      dataToSend.append('Gender', formData.gender);
+      if (imageFile) dataToSend.append('ProfilePicture', imageFile);
 
-      // الرابط ده اللي هتغيره لعنوان الـ Controller في لارافيل
-      await axios.post('http://localhost:8000/api/nurse/profile-update', data);
+      await axios.put(API_BASE, dataToSend, {
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
       setStatus({ type: 'success', msg: 'Profile Updated Successfully' });
       setTimeout(() => setStatus({ type: '', msg: '' }), 4000);
     } catch (error) {
-      setStatus({ type: 'error', msg: 'Failed to update profile' });
+      setStatus({ type: 'error', msg: error.response?.data?.message || 'Update failed' });
     } finally {
-      setLoading(false);
+      setUpdating(false);
     }
   };
 
+  if (loading) return (
+    <div className="flex h-96 items-center justify-center">
+      <Loader2 className="animate-spin text-blue-600" size={40} />
+    </div>
+  );
+
   return (
-    <div className="p-8 max-w-5xl mx-auto animate-in fade-in duration-700">
+    <div className="p-8 max-w-5xl mx-auto animate-in fade-in duration-700 bg-[#fcfcfd]">
       <header className="mb-10 flex justify-between items-end">
         <div className="text-left">
           <h2 className="text-3xl font-black text-slate-800 tracking-tight">Edit Profile</h2>
-          <p className="text-slate-400 text-sm font-medium mt-1">Manage your professional information</p>
+          <p className="text-slate-400 text-sm font-medium mt-1">Update your professional details</p>
         </div>
         
         {status.msg && (
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl animate-in zoom-in ${
-            status.type === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl animate-in zoom-in shadow-sm ${
+            status.type === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-red-50 text-red-600 border border-red-100'
           }`}>
             {status.type === 'success' ? <CheckCircle size={16} /> : <X size={16} />}
             <span className="text-[10px] font-black uppercase tracking-widest">{status.msg}</span>
@@ -87,39 +135,40 @@ const NurseProfile = () => {
               {profileImage ? (
                 <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
               ) : (
-                <div className="text-blue-500 font-black text-4xl">A</div> // الحرف الأول من Ahmed
+                <div className="text-blue-500 font-black text-4xl">{formData.name?.charAt(0)}</div>
               )}
             </div>
             <button 
               type="button"
               onClick={() => fileInputRef.current.click()}
-              className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-3 rounded-2xl shadow-lg hover:bg-blue-700 transition-all"
+              className="absolute -bottom-2 -right-2 bg-blue-600 text-white p-3 rounded-2xl shadow-lg hover:bg-blue-700 hover:scale-105 transition-all"
             >
               <Camera size={20} />
             </button>
             <input type="file" hidden ref={fileInputRef} onChange={handleImageChange} accept="image/*" />
           </div>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest tracking-tight">Personal Photo</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Profile Picture</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InputGroup label="Full Name" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Full Name" icon={<User size={16}/>} />
-            <InputGroup label="Email Address" name="email" value={formData.email} onChange={handleChange} placeholder="Email" icon={<MessageSquare size={16}/>} />
-            <InputGroup label="Phone Number" name="phone" value={formData.phone} onChange={handleChange} placeholder="Phone" icon={<Phone size={16}/>} />
-            <InputGroup label="Location" name="location" value={formData.location} onChange={handleChange} placeholder="Location" icon={<MapPin size={16}/>} />
+            <InputGroup label="Full Name" name="name" value={formData.name} onChange={handleChange} placeholder="Name" icon={<User size={16}/>} />
+            <InputGroup label="Phone Number" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange} placeholder="01..." icon={<Phone size={16}/>} />
+            <InputGroup label="Email Address" name="email" value={formData.email} disabled={true} placeholder="Read only" icon={<Mail size={16}/>} />
+            <InputGroup label="City" name="city" value={formData.city} onChange={handleChange} placeholder="Cairo" icon={<MapPin size={16}/>} />
             
             <div className="md:col-span-2">
-              <InputGroup label="Professional Specialization" name="specialization" value={formData.specialization} onChange={handleChange} placeholder="Specialization" icon={<Briefcase size={16}/>} />
+              <InputGroup label="Specific Address" name="address" value={formData.address} onChange={handleChange} placeholder="Street, Building..." icon={<MapPin size={16}/>} />
             </div>
             
             <div className="md:col-span-2 space-y-3 text-left">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">About You</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Professional Bio</label>
               <textarea 
                 name="bio"
                 value={formData.bio}
                 onChange={handleChange}
                 className="w-full p-6 bg-slate-50/50 border border-slate-100 rounded-[2rem] text-xs font-bold text-slate-600 outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all min-h-[120px]"
+                placeholder="Tell us about your experience..."
               />
             </div>
           </div>
@@ -127,11 +176,11 @@ const NurseProfile = () => {
           <div className="flex gap-4 pt-8 border-t border-slate-50">
             <button 
               type="submit"
-              disabled={loading}
-              className="bg-blue-600 text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-3 disabled:opacity-70"
+              disabled={updating}
+              className="bg-slate-900 text-white px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] shadow-xl hover:bg-blue-600 transition-all flex items-center gap-3 disabled:opacity-70 group"
             >
-              {loading ? <Loader2 size={18} className="animate-spin" /> : <Save size={18}/>}
-              {loading ? "Updating..." : "Save Changes"}
+              {updating ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} className="group-hover:scale-110 transition-transform" />}
+              {updating ? "Updating..." : "Save Profile"}
             </button>
           </div>
         </form>
@@ -140,7 +189,7 @@ const NurseProfile = () => {
   );
 };
 
-const InputGroup = ({ label, name, value, onChange, placeholder, icon }) => (
+const InputGroup = ({ label, name, value, onChange, placeholder, icon, disabled = false }) => (
   <div className="space-y-3 text-left">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">{label}</label>
     <div className="relative group">
@@ -152,8 +201,9 @@ const InputGroup = ({ label, name, value, onChange, placeholder, icon }) => (
         name={name}
         value={value}
         onChange={onChange}
+        disabled={disabled}
         placeholder={placeholder}
-        className="w-full pl-12 pr-6 py-4 bg-slate-50/50 border border-slate-100 rounded-[1.5rem] text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all"
+        className={`w-full pl-12 pr-6 py-4 bg-slate-50/50 border border-slate-100 rounded-[1.5rem] text-xs font-bold text-slate-700 outline-none focus:ring-4 focus:ring-blue-500/5 focus:bg-white focus:border-blue-200 transition-all ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
       />
     </div>
   </div>

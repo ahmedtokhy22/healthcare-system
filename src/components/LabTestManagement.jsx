@@ -1,202 +1,265 @@
-import React, { useState } from 'react';
-import { TestTube, Home, DollarSign, Plus, Edit2, Trash2, Save, X, Info } from "lucide-react";
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import axios from 'axios';
+import { TestTube, Plus, Trash2, Edit3, Loader2, CheckCircle, Search, X, AlertCircle } from "lucide-react";
 
-export default function LabTestManagement() {
-  // 1. البيانات الأولية للتحاليل
-  const [tests, setTests] = useState([
-    { id: 1, name: "Complete Blood Count (CBC)", desc: "Measures different components of blood", price: "450", pre: "Fasting not required" },
-    { id: 2, name: "Lipid Panel", desc: "Checks cholesterol levels", price: "650", pre: "12-hour fasting required" },
-    { id: 3, name: "HbA1c (Diabetes Test)", desc: "Measures average blood sugar levels", price: "550", pre: "No fasting required" }
-  ]);
+const API_BASE_URL = "http://localhost:5173/api";
 
-  const [homeVisitPrice, setHomeVisitPrice] = useState(150);
-  const [isEditingHomeVisit, setIsEditingHomeVisit] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [currentTest, setCurrentTest] = useState({ name: '', desc: '', price: '', pre: '' });
-  const [isEditingTest, setIsEditingTest] = useState(null);
+// Toast Notification Component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
 
-  const deleteTest = (id) => {
-    if(window.confirm("Are you sure you want to delete this test?")) {
-        setTests(tests.filter(t => t.id !== id));
-    }
-  };
-
-  const openAddModal = () => {
-    setIsEditingTest(null);
-    setCurrentTest({ name: '', desc: '', price: '', pre: '' });
-    setShowModal(true);
-  };
-
-  const openEditModal = (test) => {
-    setIsEditingTest(test.id);
-    setCurrentTest(test);
-    setShowModal(true);
-  };
-
-  const saveTest = () => {
-    if (!currentTest.name || !currentTest.price) return alert("Please fill name and price");
-    
-    if(isEditingTest) {
-        setTests(tests.map(t => t.id === isEditingTest ? { ...currentTest } : t));
-    } else {
-        setTests([...tests, { ...currentTest, id: Date.now() }]);
-    }
-    setShowModal(false);
-  };
+  const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
 
   return (
-    <div className="space-y-8 animate-in slide-in-from-bottom-5 duration-700 font-sans p-2">
+    <div className={`fixed top-4 right-4 ${bgColor} text-white px-6 py-3 rounded-2xl shadow-lg z-[200] flex items-center gap-3 animate-in slide-in-from-right`}>
+      {type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+      <span className="font-medium text-sm">{message}</span>
+      <button onClick={onClose} className="ml-2 hover:opacity-80"><X size={16} /></button>
+    </div>
+  );
+};
+
+export default function LabTestsManagement() {
+  const [myTests, setMyTests] = useState([]); 
+  const [systemTests, setSystemTests] = useState([]); 
+  const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [processingId, setProcessingId] = useState(null);
+  const [updatePrice, setUpdatePrice] = useState({ id: null, price: "" });
+  const [toast, setToast] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const token = localStorage.getItem("token");
+  
+  const api = useMemo(() => {
+    return axios.create({
+      baseURL: API_BASE_URL,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+  }, [token]);
+
+  const showToast = useCallback((message, type = 'info') => {
+    setToast({ message, type });
+  }, []);
+
+  const fetchData = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      const [myRes, systemRes] = await Promise.all([
+        api.get('/labs/me/LabTests'),
+        api.get('/Tests')
+      ]);
+      setMyTests(Array.isArray(myRes.data) ? myRes.data : []);
+      setSystemTests(Array.isArray(systemRes.data) ? systemRes.data : []);
+    } catch (err) {
+      console.error("Fetch Error:", err);
+      showToast('Failed to load tests', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [api, token, showToast]);
+
+  useEffect(() => { 
+    fetchData(); 
+  }, [fetchData]);
+
+  const handleAddTest = async (targetTestId) => {
+    setProcessingId(targetTestId);
+    try {
+      await api.post('/labs/me/LabTests', { testId: targetTestId });
+      showToast('Test added successfully!', 'success');
+      setShowAddModal(false);
+      await fetchData(); 
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Error adding test', 'error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleUpdatePrice = async (mappingId) => {
+    if (!updatePrice.price || parseFloat(updatePrice.price) < 0) {
+      showToast('Please enter a valid price', 'error');
+      return;
+    }
+    setProcessingId(mappingId);
+    try {
+      await api.put(`/labs/me/LabTests/${mappingId}`, { 
+        price: parseFloat(updatePrice.price) 
+      });
+      showToast('Price updated successfully!', 'success');
+      setUpdatePrice({ id: null, price: "" });
+      fetchData();
+    } catch (err) {
+      showToast('Failed to update price', 'error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDelete = async (mappingId) => {
+    if (!window.confirm("Are you sure you want to remove this test?")) return;
+    setProcessingId(mappingId);
+    try {
+      await api.delete(`/labs/me/LabTests/${mappingId}`);
+      showToast('Test removed successfully!', 'success');
+      fetchData();
+    } catch (err) {
+      showToast('Failed to delete test', 'error');
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const filteredTests = myTests.filter(test => 
+    test.name?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[400px]">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 p-4 text-left" dir="ltr">
+      {toast && <Toast {...toast} onClose={() => setToast(null)} />}
       
-      {/* Modal - Improved UI */}
-      {showModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-            <div className="bg-white rounded-[3rem] p-10 w-full max-w-md shadow-2xl space-y-6 animate-in zoom-in-95 duration-300 relative">
-                <button onClick={() => setShowModal(false)} className="absolute top-8 right-8 text-slate-300 hover:text-slate-600">
-                    <X size={20} />
-                </button>
-                
-                <div className="space-y-1">
-                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">
-                        {isEditingTest ? 'Edit Test' : 'Add New Test'}
-                    </h3>
-                    <p className="text-slate-400 text-xs font-bold italic">Enter test details below</p>
-                </div>
-
-                <div className="space-y-4">
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Test Name</label>
-                        <input type="text" placeholder="e.g. Vitamin D" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-50 font-bold text-sm" 
-                               value={currentTest.name} onChange={e => setCurrentTest({...currentTest, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Description</label>
-                        <input type="text" placeholder="Short description" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-50 font-bold text-sm"
-                               value={currentTest.desc} onChange={e => setCurrentTest({...currentTest, desc: e.target.value})} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Price (EGP)</label>
-                            <input type="number" placeholder="0.00" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-50 font-bold text-sm"
-                                   value={currentTest.price} onChange={e => setCurrentTest({...currentTest, price: e.target.value})} />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Conditions</label>
-                            <input type="text" placeholder="e.g. Fasting" className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-50 font-bold text-sm"
-                                   value={currentTest.pre} onChange={e => setCurrentTest({...currentTest, pre: e.target.value})} />
-                        </div>
-                    </div>
-                </div>
-                <div className="flex gap-3 pt-4">
-                    <button onClick={saveTest} className="flex-1 bg-blue-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">Save Changes</button>
-                    <button onClick={() => setShowModal(false)} className="flex-1 bg-slate-100 text-slate-400 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex justify-between items-center gap-4 flex-wrap text-left">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h2 className="text-3xl font-black text-slate-800 tracking-tight">Test Management</h2>
-          <p className="text-slate-400 text-xs font-bold mt-1 italic flex items-center gap-2">
-            <Info size={14} className="text-blue-500" /> Control your catalog and service fees
-          </p>
+          <h2 className="text-3xl font-black text-slate-800">My Lab Services</h2>
+          <p className="text-slate-400 text-sm mt-1">{filteredTests.length} active services</p>
         </div>
-        <button onClick={openAddModal} className="bg-slate-900 text-white px-8 py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl hover:bg-blue-600 transition-all">
-          <Plus size={16} /> Add New Test
+        <button 
+          onClick={() => setShowAddModal(true)}
+          className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2"
+        >
+          <Plus size={18} /> Add New Service
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <StatCard label="Live Catalog" value={tests.length} icon={<TestTube size={20}/>} color="text-blue-500" />
-        <StatCard label="Home Fee" value={`${homeVisitPrice} EGP`} icon={<Home size={20}/>} color="text-green-500" />
-        <StatCard label="Avg. Rate" value={`${tests.length ? Math.round(tests.reduce((acc, t) => acc + Number(t.price), 0) / tests.length) : 0} EGP`} icon={<DollarSign size={20}/>} color="text-purple-500" />
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <input
+          type="text"
+          placeholder="Search your tests..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm outline-none focus:border-blue-500"
+        />
       </div>
 
-      {/* Home Visit Section */}
-      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-50 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6 text-left">
-        <div className="space-y-1">
-          <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Home Visit Service Fee</h4>
-          <p className="text-slate-400 text-xs font-medium italic">Fixed fee applied to any home service request</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-            {isEditingHomeVisit ? (
-                <div className="flex gap-2">
+      {/* Tests Grid */}
+      {filteredTests.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredTests.map((item) => (
+            <div key={item.id} className="bg-white border border-slate-100 p-6 rounded-[2.5rem] shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between mb-6">
+                <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+                  <TestTube size={24} />
+                </div>
+                <button 
+                  onClick={() => handleDelete(item.id)} 
+                  className="p-2 text-slate-200 hover:text-red-500 transition-colors"
+                  disabled={processingId === item.id}
+                >
+                  {processingId === item.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={18} />}
+                </button>
+              </div>
+              <h5 className="font-black text-slate-800 text-lg mb-2">{item.name}</h5>
+              <p className="text-slate-400 text-xs mb-4 line-clamp-2">{item.description || 'No description'}</p>
+              
+              <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
+                <span className="font-black text-blue-600 text-xl">{item.price?.toFixed(2)} <small className="text-slate-400 text-xs">EGP</small></span>
+                {updatePrice.id === item.id ? (
+                  <div className="flex gap-2">
                     <input 
                       type="number" 
-                      value={homeVisitPrice} 
-                      onChange={(e) => setHomeVisitPrice(e.target.value)}
-                      className="text-xl font-black text-blue-600 bg-slate-50 border border-blue-100 px-4 py-2 rounded-xl outline-none focus:ring-4 focus:ring-blue-50 w-28"
+                      step="0.01"
+                      min="0"
+                      value={updatePrice.price}
+                      onChange={(e) => setUpdatePrice({...updatePrice, price: e.target.value})}
+                      className="w-20 p-2 bg-slate-50 rounded-xl text-sm outline-blue-500 text-right"
+                      autoFocus
                     />
-                    <button onClick={() => setIsEditingHomeVisit(false)} className="p-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100 hover:scale-105 transition-all">
-                        <Save size={18} />
-                    </button>
-                </div>
-            ) : (
-                <div className="flex items-center gap-4">
-                    <span className="text-2xl font-black text-slate-700">{homeVisitPrice} <span className="text-xs text-slate-300 uppercase">EGP</span></span>
                     <button 
-                        onClick={() => setIsEditingHomeVisit(true)}
-                        className="px-4 py-2 border border-slate-100 rounded-xl text-[10px] font-black text-blue-600 uppercase hover:bg-blue-50 transition-all"
+                      onClick={() => handleUpdatePrice(item.id)} 
+                      className="bg-slate-900 text-white px-3 rounded-xl text-xs font-bold"
                     >
-                        Change Fee
+                      Save
                     </button>
-                </div>
-            )}
-        </div>
-      </div>
-
-      {/* Test Catalog List */}
-      <div className="bg-white p-10 rounded-[3rem] border border-slate-50 shadow-sm space-y-8 text-left">
-        <h4 className="font-black text-slate-700 flex items-center gap-2 underline decoration-blue-100 decoration-4 underline-offset-8">
-            Current Test Catalog
-        </h4>
-        <div className="grid grid-cols-1 gap-4">
-          {tests.map((test) => (
-            <div key={test.id} className="p-8 border border-slate-50 rounded-[2.5rem] flex justify-between items-center group hover:border-blue-100 hover:bg-blue-50/10 transition-all duration-500 gap-6 flex-wrap md:flex-nowrap">
-              <div className="space-y-2 flex-grow">
-                <div className="flex items-center gap-3">
-                    <h5 className="font-black text-slate-700 text-lg tracking-tight">{test.name}</h5>
-                    <span className="px-3 py-1 bg-slate-100 text-slate-400 rounded-full text-[9px] font-black uppercase tracking-tighter">{test.pre}</span>
-                </div>
-                <p className="text-slate-400 text-xs font-medium max-w-md">{test.desc}</p>
-                <p className="text-lg font-black text-blue-600">{test.price} <span className="text-[10px] text-slate-300 uppercase tracking-widest">EGP</span></p>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => openEditModal(test)} className="p-4 bg-slate-50 text-slate-400 rounded-[1.2rem] hover:bg-blue-600 hover:text-white hover:rotate-12 transition-all duration-300">
-                  <Edit2 size={18} />
-                </button>
-                <button onClick={() => deleteTest(test.id)} className="p-4 bg-slate-50 text-slate-400 rounded-[1.2rem] hover:bg-red-500 hover:text-white hover:-rotate-12 transition-all duration-300">
-                  <Trash2 size={18} />
-                </button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setUpdatePrice({id: item.id, price: item.price.toString()})} 
+                    className="text-[10px] font-black text-slate-400 uppercase underline hover:text-blue-600"
+                  >
+                    Edit Price
+                  </button>
+                )}
               </div>
             </div>
           ))}
-          
-          {tests.length === 0 && (
-            <div className="text-center py-20 bg-slate-50 rounded-[3rem] border border-dashed border-slate-200">
-                <TestTube size={48} className="mx-auto text-slate-200 mb-4" />
-                <p className="text-slate-400 font-black italic">Your catalog is empty.</p>
-            </div>
-          )}
         </div>
-      </div>
-    </div>
-  );
-}
+      ) : (
+        <div className="text-center py-20 bg-gradient-to-br from-slate-50 to-blue-50/30 rounded-[3rem] border-2 border-dashed border-slate-200">
+          <TestTube className="mx-auto text-slate-200 mb-4" size={48} />
+          <p className="text-slate-400 font-black italic">No tests found. Click "Add New Service" to start.</p>
+        </div>
+      )}
 
-function StatCard({ label, value, icon, color }) {
-  return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-50 shadow-sm flex justify-between items-center text-left hover:shadow-lg transition-all duration-500">
-      <div className="space-y-1">
-        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">{label}</p>
-        <h3 className="text-2xl font-black text-slate-800 tracking-tighter">{value}</h3>
-      </div>
-      <div className={`p-4 bg-slate-50 rounded-[1.2rem] ${color} shadow-inner`}>
-        {icon}
-      </div>
+      {/* Add Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl animate-in zoom-in-95 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b flex justify-between items-center">
+              <h3 className="text-xl font-black text-slate-800">System Test Catalog</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-slate-900">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto space-y-3 bg-slate-50/50 flex-1">
+              {systemTests.filter(t => !myTests.some(myT => myT.testId === t.id)).map(t => (
+                <div key={t.id} className="flex items-center justify-between p-4 rounded-2xl border border-white bg-white shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center">
+                      <TestTube size={18} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-slate-800">{t.name}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase">Base: {t.price?.toFixed(2)} EGP</p>
+                    </div>
+                  </div>
+                  <button 
+                    disabled={processingId === t.id}
+                    onClick={() => handleAddTest(t.id)}
+                    className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                      processingId === t.id 
+                        ? 'bg-slate-100 text-slate-400' 
+                        : 'bg-slate-900 text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    {processingId === t.id ? <Loader2 size={12} className="animate-spin" /> : 'Select'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

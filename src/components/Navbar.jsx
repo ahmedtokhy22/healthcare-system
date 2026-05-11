@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, Users, Calendar, ClipboardList, 
   UserCircle, LogOut, HeartPulse, Shield, 
-  Stethoscope, MessageSquare, Clock 
+  Stethoscope, MessageSquare, Clock, UserPlus
 } from "lucide-react";
 
 export default function Navbar({ role, showDropdown, setShowDropdown }) {
@@ -16,11 +16,14 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
     window.location.reload();
   };
 
-  // تعريف الروابط بناءً على الأدوار مع تحسين روابط التمريض
+  // تعريف الروابط بناءً على الأدوار مع إضافة أقسام الإدارة الجديدة
   const navLinks = {
     Admin: [
       { name: 'Control Panel', path: '/admin/dashboard', icon: <Shield size={18}/> },
       { name: 'Users List', path: '/admin/users', icon: <Users size={18}/> },
+      { name: 'Create Account', path: '/admin/create-user', icon: <UserPlus size={18}/> }, // جديد لإضافة مستخدمين
+      { name: 'Specialties', path: '/admin/specialties', icon: <Stethoscope size={18}/> }, // جديد لإدارة التخصصات
+      { name: 'System Posts', path: '/admin/posts', icon: <ClipboardList size={18}/> }, // جديد لإدارة المنشورات
     ],
     Doctor: [
       { name: 'Dashboard', path: '/doctor/dashboard', icon: <LayoutDashboard size={18}/> },
@@ -33,24 +36,12 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
       { name: 'Overview', path: '/lab/dashboard', icon: <LayoutDashboard size={18}/> },
       { name: 'Appointments', path: '/lab/appointments', icon: <Calendar size={18}/> },
       { name: 'Requests', path: '/lab/pending-requests', icon: <Clock size={18}/> },
-      { name: 'Tests Info', path: '/lab/tests', icon: <Stethoscope size={18}/> },
+      { name: 'Tests Info', path: '/lab/tests', icon: <Stethoscope size={18}/> }, //
     ],
     Nurse: [
-      { 
-        name: 'Dashboard', 
-        path: '/nurse/dashboard', 
-        icon: <LayoutDashboard size={18}/> 
-      },
-      { 
-        name: 'Requests', 
-        path: '/nurse/pending-requests', 
-        icon: <Clock size={18}/> 
-      },
-      { 
-        name: 'Nurse Station', // تم تعديل الاسم ليعبر عن إدارة المواعيد والأسعار
-        path: '/nurse/manage-appointments', 
-        icon: <Calendar size={18}/> 
-      }
+      { name: 'Dashboard', path: '/nurse/dashboard', icon: <LayoutDashboard size={18}/> },
+      { name: 'Requests', path: '/nurse/pending-requests', icon: <Clock size={18}/> },
+      { name: 'Nurse Station', path: '/nurse/manage-appointments', icon: <Calendar size={18}/> }
     ]
   };
 
@@ -70,22 +61,22 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
           </span>
         </div>
 
-        {/* Navigation Links - Centered Style */}
-        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-[1.5rem] border border-slate-100/50">
+        {/* Navigation Links - Dynamic based on Role */}
+        <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-[1.5rem] border border-slate-100/50 overflow-x-auto no-scrollbar max-w-[60%] lg:max-w-none">
           {currentLinks.map((link) => {
             const isActive = location.pathname === link.path;
             return (
               <Link
                 key={link.path}
                 to={link.path}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`flex items-center gap-2 px-4 lg:px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 whitespace-nowrap ${
                   isActive
                   ? 'bg-white text-blue-600 shadow-sm border border-slate-100 scale-105'
                   : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
                 }`}
               >
                 {link.icon}
-                <span className="hidden lg:block">{link.name}</span>
+                <span className="hidden xl:block">{link.name}</span>
               </Link>
             );
           })}
@@ -114,9 +105,7 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
           {/* Dropdown Menu */}
           {showDropdown && (
             <>
-              {/* Overlay لإغلاق المنيو عند الضغط خارجها */}
               <div className="fixed inset-0 z-[-1]" onClick={() => setShowDropdown(false)}></div>
-              
               <div className="absolute right-0 mt-3 w-56 bg-white rounded-[2rem] shadow-2xl shadow-slate-200 border border-slate-50 p-3 animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-4 py-3 border-b border-slate-50 mb-2">
                   <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Account Settings</p>
