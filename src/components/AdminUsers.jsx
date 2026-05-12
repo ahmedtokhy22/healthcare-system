@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Search, UserPlus, ToggleLeft, ToggleRight, X, Loader2 } from "lucide-react";
+import { Search, UserPlus, ToggleLeft, ToggleRight, X, Loader2, ChevronDown } from "lucide-react";
 
 export default function UserManagement() {
-  const [data, setData] = useState({ items: [], pageNumber: 1, totalPages: 1 });
+  const [items, setItems] = useState([]); 
+  const [pagination, setPagination] = useState({ pageNumber: 1, totalPages: 1 });
   const [query, setQuery] = useState({ pageNumber: 1, search: "", role: "" });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -11,36 +12,52 @@ export default function UserManagement() {
   const [specialties, setSpecialties] = useState([]);
   
   const [formData, setFormData] = useState({
-    name: "", email: "", role: "Doctor", gender: "Male", address: "", phoneNumber: "", cityId: "", specialityId: ""
+    name: "", email: "", role: "Doctor", gender: "male", address: "", phoneNumber: "", city: "", specialityId: ""
   });
 
   const API = "https://healthcare52.runasp.net/api";
   const headers = { Authorization: `Bearer ${localStorage.getItem("token")}` };
 
   useEffect(() => { 
-    fetchUsers(); 
+    fetchUsers(query.pageNumber === 1); 
   }, [query]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (isReset) => {
     setLoading(true);
     try {
       const res = await axios.get(`${API}/Users?pageNumber=${query.pageNumber}&search=${query.search}&role=${query.role}`, { headers });
-      setData(res.data);
+      
+      if (isReset) {
+        setItems(res.data.items);
+      } else {
+        setItems(prev => [...prev, ...res.data.items]); 
+      }
+      
+      setPagination({ 
+        pageNumber: res.data.pageNumber, 
+        totalPages: res.data.totalPages 
+      });
     } catch (err) { console.error(err); }
     setLoading(false);
+  };
+
+  const handleLoadMore = () => {
+    if (query.pageNumber < pagination.totalPages) {
+      setQuery(prev => ({ ...prev, pageNumber: prev.pageNumber + 1 }));
+    }
   };
 
   const toggleStatus = async (id) => {
     try {
       await axios.patch(`${API}/Users/${id}/toggle-status`, {}, { headers });
-      fetchUsers();
+      setItems(prev => prev.map(u => u.id === id ? { ...u, isDisabled: !u.isDisabled } : u));
     } catch (err) { alert("Action failed"); }
   };
 
   const openModal = async () => {
     try {
       const [cityRes, specRes] = await Promise.all([
-        axios.get(`${API}/Locations/cities`), // المسار الذي ظهر في الصورة بنجاح
+        axios.get(`${API}/Locations/cities`),
         axios.get(`${API}/Specialties`)
       ]);
       setCities(cityRes.data);
@@ -51,24 +68,40 @@ export default function UserManagement() {
 
   const handleRegister = async (e) => {
     e.preventDefault();
-    
-    // تحويل الـ IDs إلى أرقام لضمان قبول الـ Backend لها
+
+    // --- PHONE NUMBER VALIDATION ---
+    const phoneRegex = /^[0-9]{11}$/;
+    if (!phoneRegex.test(formData.phoneNumber)) {
+      alert("Phone number must be exactly 11 digits and contain only numbers.");
+      return;
+    }
+
     const payload = {
-      ...formData,
-      cityId: parseInt(formData.cityId),
-      specialityId: formData.role === "Doctor" ? parseInt(formData.specialityId) : null
+      name: formData.name,
+      email: formData.email,
+      address: formData.address,
+      phoneNumber: formData.phoneNumber,
+      city: formData.city,
+      role: formData.role
     };
+
+    if (formData.role !== "Lab") {
+      payload.gender = formData.gender.toLowerCase();
+    }
+
+    if (formData.role === "Doctor") {
+      payload.specialityId = formData.specialityId;
+    }
 
     try {
       await axios.post(`${API}/Users/medical-staff-registeration`, payload, { headers });
       setIsModalOpen(false);
-      fetchUsers();
+      setQuery({ ...query, pageNumber: 1 }); 
       alert("Staff registered successfully!");
-      // Reset Form
-      setFormData({ name: "", email: "", role: "Doctor", gender: "Male", address: "", phoneNumber: "", cityId: "", specialityId: "" });
+      setFormData({ name: "", email: "", role: "Doctor", gender: "male", address: "", phoneNumber: "", city: "", specialityId: "" });
     } catch (err) { 
-      const errorMsg = err.response?.data?.message || "Registration failed. Verify data fields.";
-      alert(errorMsg); 
+      console.error(err.response?.data);
+      alert(err.response?.data?.message || "Registration failed."); 
     }
   };
 
@@ -85,7 +118,7 @@ export default function UserManagement() {
           />
         </div>
         <select 
-          className="rounded-[1.5rem] border-none shadow-sm font-bold px-8 py-5 text-sm bg-white cursor-pointer"
+          className="rounded-[1.5rem] border-none shadow-sm font-bold px-8 py-5 text-sm bg-white cursor-pointer appearance-none"
           onChange={e => setQuery({...query, role: e.target.value, pageNumber: 1})}
         >
           <option value="">All Roles</option>
@@ -101,43 +134,52 @@ export default function UserManagement() {
 
       {/* Table Section */}
       <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-slate-100">
-        {loading ? (
-          <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-blue-500" size={40} /></div>
-        ) : (
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">User Details</th>
-                <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Role</th>
-                <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
-                <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Actions</th>
+        <table className="w-full text-left border-collapse">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">User Details</th>
+              <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Role</th>
+              <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest">Status</th>
+              <th className="px-8 py-6 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {items.map(user => (
+              <tr key={user.id} className="hover:bg-slate-50/50 transition-all">
+                <td className="px-8 py-6">
+                  <div className="font-black text-slate-800 text-sm">{user.name}</div>
+                  <div className="text-[10px] text-slate-400 font-bold uppercase">{user.email}</div>
+                </td>
+                <td className="px-8 py-6">
+                  <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase">{user.role}</span>
+                </td>
+                <td className="px-8 py-6">
+                  <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${user.isDisabled ? 'text-rose-500' : 'text-emerald-500'}`}>
+                    <div className={`w-1.5 h-1.5 rounded-full ${user.isDisabled ? 'bg-rose-500' : 'bg-emerald-500'}`} />
+                    {user.isDisabled ? 'Disabled' : 'Active'}
+                  </div>
+                </td>
+                <td className="px-8 py-6 text-center">
+                  <button onClick={() => toggleStatus(user.id)} className={`transition-all ${user.isDisabled ? 'text-rose-500' : 'text-emerald-500 hover:scale-110'}`}>
+                    {user.isDisabled ? <ToggleLeft size={38}/> : <ToggleRight size={38}/>}
+                  </button>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {data.items?.map(user => (
-                <tr key={user.id} className="hover:bg-slate-50/50 transition-all">
-                  <td className="px-8 py-6">
-                    <div className="font-black text-slate-800 text-sm">{user.name}</div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">{user.email}</div>
-                  </td>
-                  <td className="px-8 py-6">
-                    <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[9px] font-black uppercase">{user.role}</span>
-                  </td>
-                  <td className="px-8 py-6">
-                    <div className={`flex items-center gap-2 text-[10px] font-black uppercase ${user.isDisabled ? 'text-rose-500' : 'text-emerald-500'}`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${user.isDisabled ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-                      {user.isDisabled ? 'Disabled' : 'Active'}
-                    </div>
-                  </td>
-                  <td className="px-8 py-6 text-center">
-                    <button onClick={() => toggleStatus(user.id)} className={`transition-all ${user.isDisabled ? 'text-rose-500' : 'text-emerald-500 hover:scale-110'}`}>
-                      {user.isDisabled ? <ToggleLeft size={38}/> : <ToggleRight size={38}/>}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            ))}
+          </tbody>
+        </table>
+        
+        {loading && <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-blue-500" size={30} /></div>}
+
+        {!loading && query.pageNumber < pagination.totalPages && (
+          <div className="p-8 flex justify-center">
+            <button 
+              onClick={handleLoadMore}
+              className="flex items-center gap-2 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-all"
+            >
+              Load More Users <ChevronDown size={14}/>
+            </button>
+          </div>
         )}
       </div>
 
@@ -153,7 +195,16 @@ export default function UserManagement() {
             <form onSubmit={handleRegister} className="p-10 grid grid-cols-2 gap-5">
               <input placeholder="Full Name" required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, name: e.target.value})} />
               <input placeholder="Email Address" type="email" required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, email: e.target.value})} />
-              <input placeholder="Phone Number" required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, phoneNumber: e.target.value})} />
+              
+              {/* Added maxLength="11" to Phone Input */}
+              <input 
+                placeholder="Phone Number" 
+                required 
+                maxLength="11"
+                className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" 
+                onChange={e => setFormData({...formData, phoneNumber: e.target.value})} 
+              />
+              
               <input placeholder="Address" required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, address: e.target.value})} />
               
               <select className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" value={formData.role} onChange={e => setFormData({...formData, role: e.target.value, specialityId: ""})}>
@@ -162,24 +213,33 @@ export default function UserManagement() {
                 <option value="Lab">Lab</option>
               </select>
 
-              <select className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, gender: e.target.value})}>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-              </select>
+              {formData.role !== "Lab" && (
+                <select className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              )}
 
-              <select required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, cityId: e.target.value})}>
+              <select 
+                required 
+                className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" 
+                value={formData.city}
+                onChange={e => setFormData({...formData, city: e.target.value})}
+              >
                 <option value="">Select City</option>
-                {cities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {cities.map((cityName, index) => (
+                  <option key={index} value={cityName}>{cityName}</option>
+                ))}
               </select>
 
               {formData.role === "Doctor" && (
-                <select required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" onChange={e => setFormData({...formData, specialityId: e.target.value})}>
+                <select required className="p-4 bg-slate-50 rounded-xl border-none font-bold text-sm" value={formData.specialityId} onChange={e => setFormData({...formData, specialityId: e.target.value})}>
                   <option value="">Select Specialty</option>
                   {specialties.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               )}
 
-              <button className="col-span-2 bg-blue-600 text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] mt-4 hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all">
+              <button className="col-span-2 bg-blue-600 text-white py-5 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] mt-4 hover:bg-blue-700 shadow-xl transition-all">
                 Confirm Registration
               </button>
             </form>

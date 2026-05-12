@@ -27,7 +27,7 @@ export default function TestManagement() {
     e.preventDefault();
     try {
       await axios.post(API, newTest, { headers });
-      setNewTest({ name: "", description: "", prerequisites: "" });
+      setNewTest({ name: "", description: "", preRequisites: "" });
       fetchTests();
       alert("Test added successfully!");
     } catch (err) { alert("Failed to add test"); }
@@ -94,12 +94,12 @@ export default function TestManagement() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Prerequisites</label>
+            <label className="text-[10px] font-black uppercase text-slate-400 ml-2">preRequisites</label>
             <input 
               placeholder="e.g. Fasting 12 hours" 
               className="w-full bg-slate-50 p-5 rounded-2xl font-bold border-none text-sm focus:ring-2 focus:ring-blue-500 transition-all" 
-              value={newTest.prerequisites} 
-              onChange={e => setNewTest({...newTest, prerequisites: e.target.value})} 
+              value={newTest.preRequisites} 
+              onChange={e => setNewTest({...newTest, preRequisites: e.target.value})} 
             />
           </div>
           <button className="md:col-span-3 bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] shadow-xl hover:bg-blue-600 transition-all mt-2">
@@ -122,7 +122,7 @@ export default function TestManagement() {
               <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-xs">{test.description || "No description provided for this test."}</p>
               <div className="flex items-center gap-2 bg-amber-50 text-amber-600 px-4 py-2 rounded-xl w-fit">
                 <AlertCircle size={14} />
-                <span className="text-[10px] font-black uppercase">{test.prerequisites || "No specific instructions"}</span>
+                <span className="text-[10px] font-black uppercase">{test.preRequisites || "No specific instructions"}</span>
               </div>
             </div>
             
@@ -159,10 +159,10 @@ export default function TestManagement() {
                 onChange={e => setCurrentTest({...currentTest, description: e.target.value})} 
               />
               <input 
-                placeholder="Prerequisites"
+                placeholder="preRequisites"
                 className="w-full bg-slate-50 p-5 rounded-2xl font-bold border-none" 
-                value={currentTest.prerequisites} 
-                onChange={e => setCurrentTest({...currentTest, prerequisites: e.target.value})} 
+                value={currentTest.preRequisites} 
+                onChange={e => setCurrentTest({...currentTest, preRequisites: e.target.value})} 
               />
               <button className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-blue-100">
                 Update Analysis

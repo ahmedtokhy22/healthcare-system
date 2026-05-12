@@ -180,7 +180,7 @@ export default function AuthPage() {
         )}
 
         <div className="mt-10 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            Don't have an account? <Link to="/register" className="text-cyan-600 hover:underline">Register Now</Link>
+            Login <Link to="/register" className="text-cyan-600 hover:underline">From here</Link>
         </div>
       </div>
     </div>

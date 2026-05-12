@@ -19,29 +19,30 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
   // تعريف الروابط بناءً على الأدوار مع إضافة أقسام الإدارة الجديدة
   const navLinks = {
     Admin: [
-      { name: 'Control Panel', path: '/admin/dashboard', icon: <Shield size={18}/> },
+      { name: 'Dashboard', path: '/admin/dashboard', icon: <Shield size={18}/> },
       { name: 'Users List', path: '/admin/users', icon: <Users size={18}/> },
-      {name: 'lab Tests', path: '/admin/tests', icon: <Stethoscope size={18}/> }, // جديد لإدارة التحاليل
+      {name: 'Tests Management', path: '/admin/tests', icon: <Stethoscope size={18}/> }, // جديد لإدارة التحاليل
       { name: 'Specialties', path: '/admin/specialties', icon: <Stethoscope size={18}/> }, // جديد لإدارة التخصصات
-      { name: 'System Posts', path: '/admin/posts', icon: <ClipboardList size={18}/> }, // جديد لإدارة المنشورات
+      { name: 'Posts Management', path: '/admin/posts', icon: <ClipboardList size={18}/> }, // جديد لإدارة المنشورات
     ],
     Doctor: [
       { name: 'Dashboard', path: '/doctor/dashboard', icon: <LayoutDashboard size={18}/> },
       { name: 'Appointments', path: '/doctor/appointments', icon: <Calendar size={18}/> },
-      { name: 'Requests', path: '/doctor/pending-requests', icon: <Clock size={18}/> },
+      { name: 'Home Requests', path: '/doctor/pending-requests', icon: <Clock size={18}/> },
       { name: 'My Posts', path: '/doctor/posts', icon: <ClipboardList size={18}/> },
       { name: 'Chat', path: '/doctor/chat', icon: <MessageSquare size={18}/> },
     ],
     Lab: [
       { name: 'Overview', path: '/lab/dashboard', icon: <LayoutDashboard size={18}/> },
       { name: 'Appointments', path: '/lab/appointments', icon: <Calendar size={18}/> },
-      { name: 'Requests', path: '/lab/pending-requests', icon: <Clock size={18}/> },
+      { name: 'Home Requests', path: '/lab/pending-requests', icon: <Clock size={18}/> },
       { name: 'Tests Info', path: '/lab/tests', icon: <Stethoscope size={18}/> }, //
     ],
     Nurse: [
       { name: 'Dashboard', path: '/nurse/dashboard', icon: <LayoutDashboard size={18}/> },
-      { name: 'Requests', path: '/nurse/pending-requests', icon: <Clock size={18}/> },
-      { name: 'Nurse Appointments', path: '/nurse/manage-appointments', icon: <Calendar size={18}/> }
+      { name: 'Appointments', path: '/nurse/manage-appointments', icon: <Calendar size={18}/> },
+      { name: 'Requests', path: '/nurse/pending-requests', icon: <Clock size={18}/> }
+
     ]
   };
 
@@ -111,14 +112,18 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
                   <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Account Settings</p>
                 </div>
                 
-                <Link 
-                  to={`/${role?.toLowerCase()}/profile`} 
-                  onClick={() => setShowDropdown(false)}
-                  className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest group"
-                >
-                  <UserCircle size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors" /> 
-                  My Profile
-                </Link>
+                {/* CRITICAL FIX: Only show 'My Profile' if the role is NOT Admin 
+                */}
+                {role !== 'Admin' && (
+                  <Link 
+                    to={`/${role?.toLowerCase()}/profile`} 
+                    onClick={() => setShowDropdown(false)}
+                    className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-xl transition-all font-bold text-[10px] uppercase tracking-widest group"
+                  >
+                    <UserCircle size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors" /> 
+                    My Profile
+                  </Link>
+                )}
 
                 <button 
                   onClick={handleLogout}

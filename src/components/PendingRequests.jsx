@@ -3,7 +3,7 @@ import axios from "axios";
 import { 
   UserCheck, UserX, Clock, Loader2, Calendar, 
   MapPin, Phone, MessageSquare, Home, Stethoscope, AlertCircle, CheckCircle2,
-  Activity, Timer
+  Activity, Timer, Beaker
 } from "lucide-react";
 
 const API_BASE_URL = "https://healthcare52.runasp.net";
@@ -26,7 +26,6 @@ export default function PendingRequests({ type }) {
       const actionPath = type === 'Doctor' ? 'doctor-appointments' : (type === 'Lab' ? 'lab-appointments' : 'nurse-appointments');
       let queryParams = "status=Pending";
       
-      // Nurse endpoint doesn't need HomeVisit filter as they are all visits
       if (type === 'Doctor' || type === 'Lab') {
         queryParams += "&appointmentType=HomeVisit";
       }
@@ -54,11 +53,8 @@ export default function PendingRequests({ type }) {
       );
       finalizeSuccess(id, newStatus);
     } catch (err) {
-      // Log the first attempt error to console for debugging
       console.error("First attempt failed:", err.response?.data);
-
       try {
-        // Fallback for string-based body
         await axios.patch(
           `${API_BASE_URL}/api/Appointments/${id}/confrimation`, 
           `"${newStatus}"`, 
@@ -66,12 +62,7 @@ export default function PendingRequests({ type }) {
         );
         finalizeSuccess(id, newStatus);
       } catch (retryErr) {
-        // Extract the message from the API response body
-        // Usually it's retryErr.response.data or retryErr.response.data.message
         const serverError = retryErr.response?.data;
-        console.error("Critical API Error:", serverError);
-
-        // Convert the error object to a string to show in the UI
         const errorMessage = typeof serverError === 'string' 
           ? serverError 
           : (serverError?.message || serverError?.title || "حدث خطأ غير متوقع");
@@ -95,7 +86,6 @@ export default function PendingRequests({ type }) {
     setTimeout(() => setStatusMsg({ type: '', text: '' }), 3000);
   };
 
-  // Helper to calculate Nurse Time strings
   const getNurseTimeRange = (req) => {
     if (!req.appointmentStartTime) return "---";
     const start = req.appointmentStartTime.slice(0, 5);
@@ -122,7 +112,7 @@ export default function PendingRequests({ type }) {
           <h1 className="text-5xl font-black text-slate-900 tracking-tighter italic">
             {type} <span className="text-blue-600">Requests.</span>
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mr-1">إدارة الطلبات المعلقة بدقة واحترافية</p>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mr-1">إدارة الطلبات المعلقة بدقة واحترافية</p>
         </div>
         
         {statusMsg.text && (
@@ -153,7 +143,7 @@ export default function PendingRequests({ type }) {
                   {req.patientName?.charAt(0).toUpperCase()}
                 </div>
                 <h3 className="text-xl font-black text-slate-800 tracking-tighter">{req.patientName}</h3>
-                <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-1">{req.gender || 'Patient'}</p>
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">{req.gender || 'Patient'}</p>
               </div>
 
               {/* Data Section */}
@@ -161,7 +151,6 @@ export default function PendingRequests({ type }) {
                 <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-8">
                   <DetailBox icon={<Calendar size={18}/>} label="تاريخ الحجز" value={req.date} />
                   
-                  {/* Time Logic Branching */}
                   <DetailBox 
                     icon={<Clock size={18}/>} 
                     label="الوقت المتوقع" 
@@ -174,7 +163,6 @@ export default function PendingRequests({ type }) {
                     } 
                   />
 
-                  {/* Nurse Specific Fields */}
                   {type === 'Nurse' && (
                     <>
                       <DetailBox icon={<Activity size={18}/>} label="نوع الخدمة" value={req.serviceType} />
@@ -185,6 +173,23 @@ export default function PendingRequests({ type }) {
                   <DetailBox icon={<Phone size={18}/>} label="رقم الجوال" value={req.patientPhoneNumber} isSpecial />
                 </div>
 
+                {/* Lab Specific: Tests List */}
+                {type === 'Lab' && req.tests && req.tests.length > 0 && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-right-4 duration-500">
+                    <div className="flex items-center gap-2 text-slate-400">
+                      <Beaker size={16} />
+                      <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">الفحوصات المطلوبة</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {req.tests.map((test, idx) => (
+                        <span key={idx} className="px-4 py-2 bg-blue-50 text-blue-700 text-[11px] font-black rounded-xl border border-blue-100/50 shadow-sm">
+                          {test}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-4">
                   {req.address && (
                     <div className="flex items-center gap-4 bg-blue-50/20 p-4 rounded-2xl border border-blue-50/50">
@@ -194,8 +199,8 @@ export default function PendingRequests({ type }) {
                   )}
                   {req.notes && (
                     <div className="flex items-start gap-3 px-2">
-                      <MessageSquare className="text-slate-200 mt-1" size={16} />
-                      <p className="text-xs font-bold text-slate-400 italic leading-relaxed">"{req.notes}"</p>
+                      <MessageSquare className="text-slate-300 mt-1" size={16} />
+                      <p className="text-xs font-bold text-slate-500 italic leading-relaxed">"{req.notes}"</p>
                     </div>
                   )}
                 </div>
@@ -224,7 +229,7 @@ export default function PendingRequests({ type }) {
         )) : (
           <div className="py-32 text-center bg-slate-50/50 rounded-[4rem] border-2 border-dashed border-white shadow-inner">
             <Clock className="mx-auto text-slate-200 mb-4" size={48} />
-            <p className="text-slate-300 font-black text-[10px] uppercase tracking-[0.4em]">لا توجد طلبات جديدة حالياً</p>
+            <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.4em]">لا توجد طلبات جديدة حالياً</p>
           </div>
         )}
       </div>
@@ -235,9 +240,10 @@ export default function PendingRequests({ type }) {
 function DetailBox({ icon, label, value, isSpecial }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-blue-600/30">
+      {/* التعديل هنا: تم تغيير اللون من الأزرق الشفاف إلى الرمادي الغامق وتكبير الخط */}
+      <div className="flex items-center gap-2 text-slate-400">
         {icon}
-        <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+        <span className="text-[11px] font-black uppercase tracking-widest text-slate-600">{label}</span>
       </div>
       <p className={`text-sm font-black ${isSpecial ? 'text-blue-600 underline decoration-blue-100 underline-offset-8' : 'text-slate-800'}`}>
         {value || '---'}
