@@ -21,7 +21,7 @@ export default function Navbar({ role, showDropdown, setShowDropdown }) {
     Admin: [
       { name: 'Control Panel', path: '/admin/dashboard', icon: <Shield size={18}/> },
       { name: 'Users List', path: '/admin/users', icon: <Users size={18}/> },
-      { name: 'Create Account', path: '/admin/create-user', icon: <UserPlus size={18}/> }, // جديد لإضافة مستخدمين
+      {name: 'lab Tests', path: '/admin/tests', icon: <Stethoscope size={18}/> }, // جديد لإدارة التحاليل
       { name: 'Specialties', path: '/admin/specialties', icon: <Stethoscope size={18}/> }, // جديد لإدارة التخصصات
       { name: 'System Posts', path: '/admin/posts', icon: <ClipboardList size={18}/> }, // جديد لإدارة المنشورات
     ],

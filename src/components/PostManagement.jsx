@@ -1,122 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { CheckCircle, XCircle, ChevronDown, ChevronUp, FileText, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from "react";
+import axios from "axios";
+import { 
+  Check, X, ChevronDown, Loader2, 
+  Trash2, AlertCircle, Clock, CheckCircle2 
+} from "lucide-react";
 
 export default function PostManagement() {
-  const [posts, setPosts] = useState([]);
-  const [filter, setFilter] = useState('pending'); 
+  const [posts, setPosts] = useState([]); 
+  const [filter, setFilter] = useState("unpublished"); // unpublished (Pending) vs published (Approved)
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const API_BASE = 'https://healthcare52.runasp.net/api';
-  const token = localStorage.getItem('token');
+  const API_BASE = "https://healthcare52.runasp.net/api/Posts";
+  const token = localStorage.getItem("token");
+  
+  // Important: Headers must include the token for Admin actions
   const headers = { 
-    'Authorization': `Bearer ${token}`,
-    'ngrok-skip-browser-warning': 'true' 
+    Authorization: `Bearer ${token}`,
+    'ngrok-skip-browser-warning': 'true'
   };
 
-  useEffect(() => {
-    fetchPosts();
-  }, [filter]);
-
-  const fetchPosts = async () => {
+  // 1. Fetch posts from API based on current filter
+  const fetchPosts = useCallback(async () => {
+    if (!token) return;
     setLoading(true);
     try {
-      // جلب البوستات بناءً على الفلتر (Pending = false / Published = true)
-      const isPublished = filter === 'published';
-      const res = await axios.get(`${API_BASE}/Posts?IsPublished=${isPublished}`, { headers });
-      setPosts(res.data?.items || []);
+      const res = await axios.get(`${API_BASE}?status=${filter}`, { headers });
+      // Support for both direct array or paginated object (items)
+      const data = Array.isArray(res.data) ? res.data : (res.data.items || []);
+      setPosts(data);
     } catch (err) {
-      console.error("Error fetching posts", err);
+      console.error("Error fetching posts:", err);
+      setPosts([]); 
     } finally {
       setLoading(false);
     }
+  }, [filter, token]);
+
+  useEffect(() => {
+    fetchPosts();
+  }, [fetchPosts]);
+
+  // 2. Approve/Publish or Unpublish a post
+  const handleTogglePublish = async (id, shouldPublish) => {
+    try {
+      const action = shouldPublish ? 'publish' : 'unpublish';
+      await axios.patch(`${API_BASE}/${id}/${action}`, {}, { headers });
+      fetchPosts(); 
+      setExpandedId(null);
+    } catch (err) {
+      alert("Action failed. Please verify Admin permissions.");
+    }
   };
 
-  const handleAction = async (postId, action) => {
-    try {
-      // الـ Endpoints في الـ Backend للقبول أو الرفض
-      const endpoint = action === 'publish' ? 'Accept' : 'Reject';
-      await axios.put(`${API_BASE}/Posts/${postId}/${endpoint}`, {}, { headers });
-      
-      // إزالة البوست من القائمة الحالية بعد اتخاذ إجراء
-      setPosts(prev => prev.filter(p => p.id !== postId));
-    } catch (err) {
-      alert("حدث خطأ أثناء تحديث حالة المنشور");
+  // 3. Delete post permanently
+  const handleDeletePost = async (id) => {
+    if (window.confirm("Are you sure you want to permanently delete this post?")) {
+      try {
+        // We pass the headers here to fix the "Delete operation failed" issue
+        await axios.delete(`${API_BASE}/${id}`, { headers });
+        fetchPosts();
+        alert("Post deleted successfully.");
+      } catch (err) {
+        console.error("Delete error:", err.response);
+        alert(`Delete failed: ${err.response?.data?.message || "Check API permissions"}`);
+      }
     }
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500" dir="rtl">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-[#1e293b]">إدارة المنشورات</h2>
-          <p className="text-[#64748b] text-sm mt-1">مراجعة المنشورات الطبية قبل العرض للعامة</p>
+    <div className="p-8 max-w-6xl mx-auto font-sans" dir="ltr">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-12 gap-6">
+        <div className="text-left">
+          <h1 className="text-4xl font-black tracking-tighter text-slate-800 uppercase">
+            System <span className="text-blue-600">Posts</span>
+          </h1>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
+            Review and manage medical articles from doctors
+          </p>
         </div>
-        <div className="flex bg-white p-1 rounded-xl border border-[#e2e8f0] shadow-sm font-sans">
+        
+        {/* Toggle Filters */}
+        <div className="bg-slate-100 p-1.5 rounded-[2rem] flex shadow-inner border border-slate-200">
           <button 
-            onClick={() => setFilter('pending')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'pending' ? 'bg-[#3b82f6] text-white shadow-md' : 'text-[#64748b] hover:bg-gray-50'}`}
+            onClick={() => { setFilter("unpublished"); setExpandedId(null); }}
+            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${
+              filter === 'unpublished' ? 'bg-white text-orange-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+            }`}
           >
-            قيد الانتظار
+            <Clock size={14} /> Pending
           </button>
           <button 
-            onClick={() => setFilter('published')}
-            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${filter === 'published' ? 'bg-[#3b82f6] text-white shadow-md' : 'text-[#64748b] hover:bg-gray-50'}`}
+            onClick={() => { setFilter("published"); setExpandedId(null); }}
+            className={`px-8 py-3 rounded-2xl text-[10px] font-black uppercase transition-all flex items-center gap-2 ${
+              filter === 'published' ? 'bg-white text-emerald-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'
+            }`}
           >
-            تم النشر
+            <CheckCircle2 size={14} /> Published
           </button>
         </div>
       </div>
 
-      <div className="grid gap-4">
-        {loading ? (
-          <div className="text-center py-20"><Loader2 className="animate-spin mx-auto text-blue-600" size={40} /></div>
-        ) : posts.length > 0 ? (
-          posts.map(post => (
-            <div key={post.id} className="bg-white rounded-2xl border border-[#e2e8f0] p-6 hover:shadow-lg transition-all group">
-              <div className="flex justify-between items-start">
-                <div className="flex gap-4 text-right">
-                  <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shrink-0">
-                    <FileText size={24} />
+      {/* Main Content Area */}
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-32 text-slate-300">
+          <Loader2 className="animate-spin mb-4" size={40} />
+          <p className="text-[10px] font-black uppercase tracking-widest">Retrieving Posts...</p>
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="text-center py-24 bg-white rounded-[3.5rem] border-2 border-dashed border-slate-100">
+          <AlertCircle className="mx-auto text-slate-100 mb-4" size={60} />
+          <p className="text-slate-400 font-bold text-sm">No articles currently in this category.</p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {posts.map(post => (
+            <div 
+              key={post.id} 
+              className={`bg-white rounded-[2.5rem] border transition-all duration-300 ${
+                expandedId === post.id ? 'border-blue-200 shadow-2xl scale-[1.01]' : 'border-slate-50 shadow-sm hover:shadow-md'
+              }`}
+            >
+              {/* Post Header (Collapsed View) */}
+              <div 
+                className="p-6 md:p-8 flex items-center justify-between cursor-pointer"
+                onClick={() => setExpandedId(expandedId === post.id ? null : post.id)}
+              >
+                <div className="flex items-center gap-6">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-lg transition-all ${
+                    expandedId === post.id ? 'bg-blue-600 text-white rotate-6' : 'bg-slate-50 text-slate-400'
+                  }`}>
+                    {post.authorName ? post.authorName.charAt(0) : 'D'}
                   </div>
                   <div>
-                    <h3 className="font-bold text-[#1e293b] text-lg">{post.title}</h3>
-                    <p className="text-[#94a3b8] text-xs mt-1">بواسطة: د. {post.doctorName || "طبيب متخصص"} • {post.specialtyName}</p>
+                    <h3 className="font-black text-slate-800 text-xl tracking-tight">{post.title}</h3>
+                    <div className="flex items-center gap-3 mt-1">
+                      <span className="text-[9px] font-black bg-blue-50 text-blue-600 px-2 py-1 rounded-md uppercase">
+                        {post.specialtyName || "General"}
+                      </span>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                        Dr. {post.authorName || "Medical Staff"}
+                      </p>
+                    </div>
                   </div>
                 </div>
-                
-                <div className="flex gap-2">
-                  {filter === 'pending' && (
-                    <>
-                      <button onClick={() => handleAction(post.id, 'publish')} className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-colors">
-                        <CheckCircle size={24} />
-                      </button>
-                      <button onClick={() => handleAction(post.id, 'reject')} className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                        <XCircle size={24} />
-                      </button>
-                    </>
-                  )}
-                  <button onClick={() => setExpandedId(expandedId === post.id ? null : post.id)} className="p-2 text-gray-400 hover:bg-gray-50 rounded-xl">
-                    {expandedId === post.id ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                  </button>
+                <div className={`transition-transform duration-500 ${expandedId === post.id ? 'rotate-180 text-blue-500' : 'text-slate-300'}`}>
+                  <ChevronDown size={28} />
                 </div>
               </div>
-
+              
+              {/* Expanded Post Details */}
               {expandedId === post.id && (
-                <div className="mt-6 pt-6 border-t border-gray-100 animate-in slide-in-from-top-2 duration-300 text-right">
-                  <p className="text-[#475569] leading-relaxed whitespace-pre-wrap">{post.content}</p>
-                  {post.attachmentUrl && (
-                    <img src={post.attachmentUrl} className="mt-4 rounded-xl max-h-60 object-cover" alt="attachment" />
-                  )}
+                <div className="px-8 pb-8 pt-2 animate-in slide-in-from-top-4 duration-500">
+                  <div className="p-8 bg-slate-50 rounded-[2.5rem] text-slate-600 text-base leading-relaxed mb-8 border border-slate-100 whitespace-pre-wrap">
+                    {post.content}
+                    
+                    {post.attachmentUrl && (
+                      <div className="mt-8 rounded-[2rem] overflow-hidden border border-slate-200 shadow-inner bg-white p-2">
+                        <img 
+                          src={post.attachmentUrl} 
+                          alt="Article Media" 
+                          className="max-h-[500px] w-full object-cover rounded-[1.8rem]" 
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Admin Action Bar */}
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <button 
+                      onClick={() => handleTogglePublish(post.id, filter === "unpublished")} 
+                      className={`flex-1 py-5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 shadow-lg transition-all active:scale-95 ${
+                        filter === "unpublished" 
+                        ? 'bg-emerald-500 text-white shadow-emerald-100 hover:bg-emerald-600' 
+                        : 'bg-orange-100 text-orange-600 hover:bg-orange-200 shadow-none'
+                      }`}
+                    >
+                      {filter === "unpublished" ? (
+                        <><Check size={20}/> Approve & Publish</>
+                      ) : (
+                        <><X size={20}/> Take Down Post</>
+                      )}
+                    </button>
+
+                    <button 
+                      onClick={() => handleDeletePost(post.id)} 
+                      className="px-12 py-5 bg-rose-50 text-rose-500 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                    >
+                      <Trash2 size={20}/> Delete Permanently
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          ))
-        ) : (
-          <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-100 text-gray-400 font-bold">لا يوجد منشورات في هذا القسم</div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
