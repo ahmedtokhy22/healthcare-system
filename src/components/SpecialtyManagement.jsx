@@ -1,62 +1,77 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Stethoscope, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Image as ImageIcon, Search, Loader2, Activity } from "lucide-react";
 
-export default function AdminSpecialties() {
+export default function SpecialtyManagement() {
   const [specialties, setSpecialties] = useState([]);
-  const [newName, setNewName] = useState("");
-  const token = localStorage.getItem("token");
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newSpec, setNewSpec] = useState({ name: "", image: null });
 
-  useEffect(() => {
-    fetchSpecialties();
-  }, []);
+  const API_BASE = 'https://healthcare52.runasp.net/api';
+  const token = localStorage.getItem('token');
+  const headers = { 'Authorization': `Bearer ${token}` };
 
-  const fetchSpecialties = () => {
-    axios.get("http://localhost:5173/api/Specialties").then(res => setSpecialties(res.data));
+  useEffect(() => { fetchData(); }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get(`${API_BASE}/Specialties`, { headers });
+      setSpecialties(res.data);
+    } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const handleAdd = async () => {
-    if(!newName) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    formData.append("Name", newSpec.name);
+    if (newSpec.image) formData.append("Image", newSpec.image);
     try {
-      await axios.post("http://localhost:5173/api/Admin/Specialties", { name: newName }, {
-        headers: { Authorization: `Bearer ${token}` }
+      await axios.post(`${API_BASE}/Specialties`, formData, {
+        headers: { ...headers, 'Content-Type': 'multipart/form-data' }
       });
-      setNewName("");
-      fetchSpecialties();
+      setIsModalOpen(false);
+      fetchData();
     } catch (err) { alert("Error adding specialty"); }
   };
 
   return (
     <div className="p-8 bg-[#f8fafc] min-h-screen">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-black text-slate-800 mb-8 uppercase tracking-widest">إدارة التخصصات الطبية</h1>
-        
-        {/* Add Section */}
-        <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-8 flex gap-4">
-          <input 
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="اسم التخصص الجديد..."
-            className="flex-1 bg-slate-50 border-none rounded-2xl px-6 font-bold text-sm outline-none focus:ring-2 focus:ring-blue-600 transition-all"
-          />
-          <button onClick={handleAdd} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg shadow-blue-100">
-            <Plus size={18} className="inline ml-2"/> إضافة
-          </button>
-        </div>
-
-        {/* List Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {specialties.map((spec) => (
-            <div key={spec.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex justify-between items-center hover:shadow-md transition-all">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center"><Stethoscope size={20}/></div>
-                <span className="font-black text-slate-700">{spec.name}</span>
-              </div>
-              <button className="p-3 text-slate-300 hover:text-rose-500 transition-all"><Trash2 size={18}/></button>
-            </div>
-          ))}
-        </div>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-black">Specialties</h1>
+        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">
+          + Add Specialty
+        </button>
       </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {specialties.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase())).map(spec => (
+          <div key={spec.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex justify-between items-center">
+            <span className="font-bold">{spec.name}</span>
+            <button onClick={() => {
+               if(window.confirm("Delete?")) axios.delete(`${API_BASE}/Specialties/${spec.id}`, {headers}).then(()=>fetchData())
+            }} className="text-red-500"><Trash2 size={18}/></button>
+          </div>
+        ))}
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-md">
+            <h2 className="text-xl font-black mb-6">New Specialty</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <input type="text" placeholder="Name" className="w-full p-4 bg-slate-50 rounded-xl border" onChange={e => setNewSpec({...newSpec, name: e.target.value})} />
+              <input type="file" className="w-full" onChange={e => setNewSpec({...newSpec, image: e.target.files[0]})} />
+              <div className="flex gap-2 pt-4">
+                <button type="button" onClick={()=>setIsModalOpen(false)} className="flex-1 p-4 font-bold">Cancel</button>
+                <button type="submit" className="flex-1 bg-blue-600 text-white rounded-xl font-bold">Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
