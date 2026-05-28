@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Lock, Mail, Eye, EyeOff, Loader2, AlertCircle, 
   HeartPulse, KeyRound, ArrowLeft, ShieldCheck, 
@@ -77,7 +77,6 @@ export default function AuthPage() {
     setError("");
     try {
       await axios.post(`${API_BASE_URL}/api/auth/verify-email`, { email, code });
-      // هنا تذهب لصفحة تعيين باسورد جديد أو تسجيل دخول تلقائي
       setSuccessMsg("Email Verified Successfully!");
       setTimeout(() => setView('login'), 2000);
     } catch (err) {
@@ -126,10 +125,10 @@ export default function AuthPage() {
             {view === 'otp' && <ShieldCheck className="w-10 h-10 text-emerald-500" />}
           </div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-            {view === 'login' ? 'Health Portal' : view === 'forgot' ? 'Reset Access' : 'Security Check'}
+            {view === 'login' ? 'InCare' : view === 'forgot' ? 'Reset Access' : 'Security Check'}
           </h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">
-            {view === 'login' ? 'Healthcare Management' : view === 'forgot' ? 'Recover your account' : 'Verify your identity'}
+            {view === 'login' ? 'Healthcare Platform' : view === 'forgot' ? 'Recover your account' : 'Verify your identity'}
           </p>
         </div>
 
@@ -142,15 +141,16 @@ export default function AuthPage() {
           <form onSubmit={handleLogin} className="space-y-5 animate-in slide-in-from-right duration-500">
             <InputField label="Email" icon={<Mail size={18}/>} type="email" placeholder="name@healthcare.com" value={email} onChange={(e)=>setEmail(e.target.value)} />
             <div className="space-y-2">
-              <div className="flex justify-between px-2"><label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</label>
-              <button type="button" onClick={()=>setView('forgot')} className="text-[10px] font-black text-cyan-600 hover:underline">Forgot?</button></div>
+              <div className="flex justify-between px-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Password</label>
+              </div>
               <div className="relative group">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-cyan-500" size={18} />
                 <input type={showPassword ? "text" : "password"} className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:bg-white focus:border-cyan-200 font-bold text-sm" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required />
                 <button type="button" onClick={()=>setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
               </div>
             </div>
-            <SubmitButton loading={loading} text="Login To Portal" />
+            <SubmitButton loading={loading} text="Login To InCare" />
           </form>
         )}
 
@@ -179,15 +179,29 @@ export default function AuthPage() {
           </div>
         )}
 
+        {/* Dynamic footer containing Forgot Password / Login switcher */}
         <div className="mt-10 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">
-            Login <Link to="/register" className="text-cyan-600 hover:underline">From here</Link>
+          {view === 'login' ? (
+            <>
+              Forgot Password?{' '}
+              <button type="button" onClick={() => setView('forgot')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px]">
+                Reset From here
+              </button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setView('login')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px]">
+                Login From here
+              </button>
+            </>
+          )}
         </div>
+
       </div>
     </div>
   );
 }
 
-// مكونات مساعدة لتقليل تكرار الكود
 const InputField = ({ label, icon, ...props }) => (
   <div className="space-y-2 text-left">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{label}</label>
