@@ -117,6 +117,7 @@ export default function ProfessionalDoctorChat() {
     }
   };
 
+  // الدالة المعدلة: تم إزالة الـ Optimistic Update لكي تتولى الـ SignalR الإضافة فوراً وبدون تكرار
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!messageInput.trim() || !isConnected || !activeChat) return;
@@ -124,30 +125,13 @@ export default function ProfessionalDoctorChat() {
     const textToSend = messageInput;
     setMessageInput("");
 
-    // Optimistically add your own message immediately
-    const optimisticMsg = {
-      content: textToSend,
-      senderId: currentUserId,
-      senderName: userName,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, optimisticMsg]);
-
-    // Update chat list last message and order immediately
-    setChats((prev) =>
-      prev.map((c) =>
-        c.id === activeChat.id
-          ? { ...c, lastMessage: textToSend, lastMessageAt: new Date().toISOString() }
-          : c
-      )
-    );
-
     try {
+      // إرسال الرسالة للهاب، وبمجرد استلامها السيرفر سيعمل Broadcast للـ Effect 3 ليضيفها للستيت
       await connection.invoke("SendMessage", activeChat.id, textToSend);
     } catch (err) {
       console.error("Send Error:", err);
+      // في حالة الفشل فقط، نعيد النص للمدخل حتى لا يضيع على المستخدم
       setMessageInput(textToSend);
-      setMessages((prev) => prev.filter((m) => m !== optimisticMsg));
     }
   };
 

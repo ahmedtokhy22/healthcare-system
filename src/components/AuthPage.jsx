@@ -12,13 +12,15 @@ const API_BASE_URL = "https://healthcare52.runasp.net";
 export default function AuthPage() {
   const navigate = useNavigate();
   
-  // States لإدارة التنقل بين الشاشات: 'login' | 'forgot' | 'otp'
+  // States لإدارة التنقل بين الشاشات: 'login' | 'forgot' | 'otp' | 'reset'
   const [view, setView] = useState('login');
   
   // بيانات النموذج
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   
   // حالات التحميل والرسائل
   const [loading, setLoading] = useState(false);
@@ -27,6 +29,7 @@ export default function AuthPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [timer, setTimer] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   
   const otpInputs = useRef([]);
 
@@ -38,6 +41,15 @@ export default function AuthPage() {
     }
     return () => clearInterval(interval);
   }, [timer]);
+
+  // التحكم بزر العودة الذكي للخلف خطوة بخطوة
+  const handleBack = () => {
+    setError("");
+    setSuccessMsg("");
+    if (view === 'forgot') setView('login');
+    else if (view === 'otp') setView('forgot');
+    else if (view === 'reset') setView('otp');
+  };
 
   // --- 1. منطق تسجيل الدخول (Login) ---
   const handleLogin = async (e) => {
@@ -61,43 +73,77 @@ export default function AuthPage() {
     setLoading(true);
     setError("");
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/forgot-password`, { email });
+      await axios.post(`${API_BASE_URL}/api/Auth/forgot-password`, { email });
       setTimer(30);
       setView('otp');
     } catch (err) {
-      setError("Email not found or server error.");
+      setError(err.response?.data?.message || "Email not found or server error.");
     } finally { setLoading(false); }
   };
 
-  // --- 3. منطق التحقق من الـ OTP ---
+  // --- 3. منطق التحقق من الـ OTP والانتقال لصفحة التعيين ---
   const handleVerifyOtp = async () => {
     const code = otp.join('');
     if (code.length < 6) return setError("Enter 6-digit code.");
     setLoading(true);
     setError("");
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/verify-email`, { email, code });
-      setSuccessMsg("Email Verified Successfully!");
-      setTimeout(() => setView('login'), 2000);
+      await axios.post(`${API_BASE_URL}/api/Auth/verify-reset-otp`, { email, otp: code });
+      setSuccessMsg("Code Verified Successfully!");
+      setTimeout(() => {
+        setSuccessMsg("");
+        setView('reset');
+      }, 1500);
     } catch (err) {
-      setError("Invalid or expired code.");
+      setError(err.response?.data?.message || "Invalid or expired code.");
     } finally { setLoading(false); }
   };
 
-  // --- 4. منطق إعادة إرسال الكود ---
+  // --- 4. منطق إعادة إرسال الكود (نفس الـ Endpoint) ---
   const handleResendOtp = async () => {
     if (timer > 0) return;
     setResending(true);
+    setError("");
     try {
-      await axios.post(`${API_BASE_URL}/api/auth/resend-code`, { email });
+      await axios.post(`${API_BASE_URL}/api/Auth/forgot-password`, { email });
       setTimer(60);
-      setSuccessMsg("New code sent!");
+      setSuccessMsg("New code sent successfully!");
       setTimeout(() => setSuccessMsg(""), 3000);
-    } catch { setError("Failed to resend."); }
-    finally { setResending(false); }
+    } catch { 
+      setError("Failed to resend code."); 
+    } finally { setResending(false); }
   };
 
-  // مساعدات واجهة الـ OTP
+  // --- 5. منطق تعيين كلمة المرور الجديدة النهائي ---
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      return setError("Passwords do not match.");
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const code = otp.join('');
+      await axios.post(`${API_BASE_URL}/api/Auth/reset-password`, {
+        email,
+        otp: code,
+        newPassword
+      });
+      setSuccessMsg("Password Reset Successfully! Redirecting...");
+      setTimeout(() => {
+        setSuccessMsg("");
+        setView('login');
+        // تفريغ البيانات القديمة
+        setNewPassword("");
+        setConfirmPassword("");
+        setOtp(['', '', '', '', '', '']);
+      }, 2000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Reset password failed. Try again.");
+    } finally { setLoading(false); }
+  };
+
+  // مساعدات واجهة الـ OTP لنقل الفوكس تلقائياً
   const handleOtpChange = (val, i) => {
     if (isNaN(val)) return;
     const newOtp = [...otp];
@@ -110,9 +156,9 @@ export default function AuthPage() {
     <div className="min-h-screen bg-[#f0f9ff] flex items-center justify-center p-4 font-sans" dir="ltr">
       <div className="w-full max-w-[460px] bg-white rounded-[3.5rem] shadow-2xl p-10 md:p-14 border border-blue-50 relative overflow-hidden transition-all duration-500">
         
-        {/* Back Button for Forgot/OTP views */}
+        {/* Back Button */}
         {view !== 'login' && (
-          <button onClick={() => setView('login')} className="absolute top-10 left-10 text-slate-400 hover:text-blue-600 transition-colors">
+          <button onClick={handleBack} className="absolute top-10 left-10 text-slate-400 hover:text-cyan-500 transition-colors cursor-pointer z-30">
             <ArrowLeft size={20} />
           </button>
         )}
@@ -123,12 +169,13 @@ export default function AuthPage() {
             {view === 'login' && <HeartPulse className="w-10 h-10 text-cyan-500 animate-pulse" />}
             {view === 'forgot' && <KeyRound className="w-10 h-10 text-blue-500" />}
             {view === 'otp' && <ShieldCheck className="w-10 h-10 text-emerald-500" />}
+            {view === 'reset' && <Lock className="w-10 h-10 text-cyan-500" />}
           </div>
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-            {view === 'login' ? 'InCare' : view === 'forgot' ? 'Reset Access' : 'Security Check'}
+            {view === 'login' ? 'InCare' : view === 'forgot' ? 'Reset Access' : view === 'otp' ? 'Security Check' : 'New Password'}
           </h1>
           <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">
-            {view === 'login' ? 'Healthcare Platform' : view === 'forgot' ? 'Recover your account' : 'Verify your identity'}
+            {view === 'login' ? 'Healthcare Platform' : view === 'forgot' ? 'Recover your account' : view === 'otp' ? 'Verify your identity' : 'Create secure password'}
           </p>
         </div>
 
@@ -147,7 +194,7 @@ export default function AuthPage() {
               <div className="relative group">
                 <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-cyan-500" size={18} />
                 <input type={showPassword ? "text" : "password"} className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:bg-white focus:border-cyan-200 font-bold text-sm" placeholder="••••••••" value={password} onChange={(e)=>setPassword(e.target.value)} required />
-                <button type="button" onClick={()=>setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                <button type="button" onClick={()=>setShowPassword(!showPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500 cursor-pointer">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
               </div>
             </div>
             <SubmitButton loading={loading} text="Login To InCare" />
@@ -171,7 +218,7 @@ export default function AuthPage() {
             </div>
             <SubmitButton onClick={handleVerifyOtp} loading={loading} text="Verify Code" />
             <div className="text-center pt-4 border-t border-slate-50">
-              <button onClick={handleResendOtp} disabled={timer > 0 || resending} className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 mx-auto ${timer > 0 ? 'text-slate-300' : 'text-cyan-600 hover:scale-105 transition-transform'}`}>
+              <button onClick={handleResendOtp} disabled={timer > 0 || resending} className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 mx-auto cursor-pointer ${timer > 0 ? 'text-slate-300' : 'text-cyan-600 hover:scale-105 transition-transform'}`}>
                 {resending ? <Loader2 size={14} className="animate-spin"/> : <RefreshCw size={14}/>}
                 {timer > 0 ? `Resend in ${timer}s` : "Resend Email"}
               </button>
@@ -179,19 +226,42 @@ export default function AuthPage() {
           </div>
         )}
 
-        {/* Dynamic footer containing Forgot Password / Login switcher */}
+        {view === 'reset' && (
+          <form onSubmit={handleResetPassword} className="space-y-5 animate-in slide-in-from-bottom duration-500">
+            <div className="space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">New Password</label>
+              <div className="relative group">
+                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-cyan-500" size={18} />
+                <input type={showNewPassword ? "text" : "password"} className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:bg-white focus:border-cyan-200 font-bold text-sm" placeholder="••••••••" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} required />
+                <button type="button" onClick={()=>setShowNewPassword(!showNewPassword)} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-cyan-500 cursor-pointer">{showNewPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-left">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Confirm Password</label>
+              <div className="relative group">
+                <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-cyan-500" size={18} />
+                <input type={showNewPassword ? "text" : "password"} className="w-full pl-14 pr-14 py-5 bg-slate-50 border border-slate-100 rounded-[1.8rem] outline-none focus:bg-white focus:border-cyan-200 font-bold text-sm" placeholder="••••••••" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} required />
+              </div>
+            </div>
+
+            <SubmitButton loading={loading} text="Reset Password" />
+          </form>
+        )}
+
+        {/* Dynamic footer containing Login switcher */}
         <div className="mt-10 text-center text-[11px] font-black text-slate-400 uppercase tracking-widest">
           {view === 'login' ? (
             <>
               Forgot Password?{' '}
-              <button type="button" onClick={() => setView('forgot')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px]">
+              <button type="button" onClick={() => setView('forgot')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px] cursor-pointer">
                 Reset From here
               </button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => setView('login')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px]">
-                Login From here
+              <button type="button" onClick={() => setView('login')} className="text-cyan-600 hover:underline font-black uppercase tracking-widest text-[11px] cursor-pointer">
+                Back to Login
               </button>
             </>
           )}
@@ -213,7 +283,7 @@ const InputField = ({ label, icon, ...props }) => (
 );
 
 const SubmitButton = ({ loading, text, icon, onClick }) => (
-  <button onClick={onClick} disabled={loading} className="w-full py-5 bg-cyan-500 text-white rounded-[1.8rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-cyan-100 hover:bg-cyan-600 hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:bg-slate-200">
+  <button onClick={onClick} disabled={loading} className="w-full py-5 bg-cyan-500 text-white rounded-[1.8rem] font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-cyan-100 hover:bg-cyan-600 hover:-translate-y-1 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:bg-slate-200 cursor-pointer">
     {loading ? <Loader2 className="animate-spin" size={18} /> : <>{text} {icon}</>}
   </button>
 );
